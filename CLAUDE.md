@@ -32,13 +32,36 @@ unless Node trusts the proxy's root CA. This is specific to networks that run
 such a proxy (e.g. this developer's current machine) — it is not a general
 project requirement, and other systems/deployment targets without a
 TLS-inspecting proxy do not need `NODE_EXTRA_CA_CERTS` at all. When it is
-needed, `NODE_EXTRA_CA_CERTS` must be set in the shell *before* `npm`/`node`
-starts (setting it in `.env` does not work, since Node reads it at process
-bootstrap):
+needed, `NODE_EXTRA_CA_CERTS` must be set *before* `npm`/`node` starts (setting
+it in `.env` does not work, since Node reads it at process bootstrap). On this
+developer's machine it's set as a **persistent user-level Windows env var**
+(`[Environment]::SetEnvironmentVariable("NODE_EXTRA_CA_CERTS", "C:\Users\nagus\zscaler-root-ca.pem", "User")`),
+so it's picked up automatically by any new shell — no need to set it inline
+per command anymore. For a one-off shell that predates that var:
 ```powershell
 $env:NODE_EXTRA_CA_CERTS = "C:\path\to\your-proxy-root-ca.pem"
 npm run dev
 ```
+
+**Company npm registry (JFrog Artifactory) causes `npm install` E401 on
+personal projects**: this machine's global `~/.npmrc` points the default npm
+registry at a company Artifactory mirror (`keyloop.jfrog.io`) with a scoped
+auth token. Installing this (personal, non-company) project's dependencies
+through that registry 401s. Fixed via project-local `backend/.npmrc` and
+`frontend/.npmrc`, each pinning `registry=https://registry.npmjs.org/` —
+overrides the registry only inside those folders, doesn't touch global npm
+config. Two gotchas that bit us when fixing this the first time:
+- The override only applies **inside** `backend/`/`frontend/` — running
+  `npm install` from the repo root (no `package.json` there) still falls back
+  to the global company registry.
+- Deleting only `package-lock.json` and re-running `npm install` is not
+  enough if `node_modules` still exists from a prior JFrog-sourced install —
+  npm reuses what's already on disk and the lockfile's `resolved` URLs stay
+  pointed at `keyloop.jfrog.io`. Must delete **both** `node_modules` and
+  `package-lock.json` before reinstalling to get lockfile URLs pointed at
+  `registry.npmjs.org`. This exact mistake shipped a lockfile with JFrog URLs
+  once, which then broke `npm install` on Render (fresh environment, no JFrog
+  credentials, E401) even though local installs "worked" the whole time.
 
 Sign in at `http://localhost:5173/login`. Staff test credentials, when they
 exist, live in `backend/TEST_USERS.local.md` (git-ignored).
@@ -54,6 +77,50 @@ without being asked**, but flag it if asked to make the project portable or
 to fix onboarding on another machine. A portable fix would run
 `npm --prefix backend run dev` directly and let `NODE_EXTRA_CA_CERTS` be set
 externally by whichever environment needs it.
+
+`frontend/` has no `vercel.json` rewrite rule for client-side routing, so
+direct navigation/hard-refresh on any non-root route (e.g. `/dashboard`) 404s
+on Vercel — only reachable today by navigating in-app from `/`. See
+"Deployment" section above for the fix (catch-all rewrite to `/index.html`).
+
+## Deployment
+
+Split deployment, chosen because Supabase only hosts Postgres+Auth (not an
+Express runtime) and GitHub Pages can't serve a live backend:
+
+- **Frontend** → Vercel. Root directory must be set to `frontend` (repo root
+  has no `package.json`). Env vars: `VITE_SUPABASE_URL`,
+  `VITE_SUPABASE_ANON_KEY`, `VITE_API_BASE_URL`.
+- **Backend** → Render (Web Service). Root directory `backend`, build
+  `npm install`, start `npm start`. Env vars: `SUPABASE_URL`,
+  `SUPABASE_SERVICE_ROLE_KEY`, `CORS_ORIGIN`. Free tier spins down after ~15
+  min idle; first request after that takes ~50s (cold start) — expected, not
+  a bug.
+- **Database/Auth** → same hosted Supabase project as local dev, no separate
+  deploy step.
+
+Gotchas hit while setting this up (in case they recur on redeploy or a future
+env change):
+
+- **`VITE_API_BASE_URL` must include the `/api` suffix**
+  (`https://<render-app>.onrender.com/api`, not just the bare origin). The
+  axios instance in `services/api.js` uses this value directly as `baseURL`
+  with no path joining — set it wrong and every request 404s against
+  `notFoundHandler` instead of hitting `/api/*` routes.
+- **`CORS_ORIGIN` on Render must exactly match the Vercel origin** — no
+  trailing slash, exact scheme+host. A mismatch doesn't show up as a clean
+  CORS error: the OPTIONS preflight still returns `204`, but the response is
+  missing `Access-Control-Allow-Origin`, so the browser silently blocks the
+  real request and axios just reports a generic "Network Error" in the UI.
+  If the dashboard/pages show "Network Error" after a deploy, check this
+  first — `curl -i -X OPTIONS <backend>/api/... -H "Origin: <frontend>"` and
+  grep the response for `access-control-allow-origin` to confirm it's present
+  and matches.
+- **Client-side routing 404s on hard refresh/deep link on Vercel** —
+  navigating straight to e.g. `/dashboard` (not via in-app navigation) 404s
+  because Vercel doesn't know to serve `index.html` for unknown paths by
+  default. Needs a rewrite rule (`frontend/vercel.json` with a catch-all
+  rewrite to `/index.html`) — **not yet added, tracked as a TODO**.
 
 ## Database
 
