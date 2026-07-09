@@ -78,11 +78,6 @@ to fix onboarding on another machine. A portable fix would run
 `npm --prefix backend run dev` directly and let `NODE_EXTRA_CA_CERTS` be set
 externally by whichever environment needs it.
 
-`frontend/` has no `vercel.json` rewrite rule for client-side routing, so
-direct navigation/hard-refresh on any non-root route (e.g. `/dashboard`) 404s
-on Vercel — only reachable today by navigating in-app from `/`. See
-"Deployment" section above for the fix (catch-all rewrite to `/index.html`).
-
 ## Deployment
 
 Split deployment, chosen because Supabase only hosts Postgres+Auth (not an
@@ -116,11 +111,9 @@ env change):
   first — `curl -i -X OPTIONS <backend>/api/... -H "Origin: <frontend>"` and
   grep the response for `access-control-allow-origin` to confirm it's present
   and matches.
-- **Client-side routing 404s on hard refresh/deep link on Vercel** —
-  navigating straight to e.g. `/dashboard` (not via in-app navigation) 404s
-  because Vercel doesn't know to serve `index.html` for unknown paths by
-  default. Needs a rewrite rule (`frontend/vercel.json` with a catch-all
-  rewrite to `/index.html`) — **not yet added, tracked as a TODO**.
+- **Client-side routing 404s on hard refresh/deep link on Vercel** unless a
+  rewrite rule tells Vercel to serve `index.html` for unknown paths — fixed
+  via `frontend/vercel.json`'s catch-all rewrite.
 
 ## Database
 
