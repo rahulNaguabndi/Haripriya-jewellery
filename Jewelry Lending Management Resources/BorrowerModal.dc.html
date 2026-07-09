@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<sc-if value="{{ show }}">
+  <div style="position:fixed; inset:0; background:rgba(28,20,16,0.45); display:flex; align-items:center; justify-content:center; z-index:1000; font-family:'Jost',sans-serif;">
+    <div style="width:520px; max-height:86vh; overflow:auto; background:var(--surface); border-radius:14px; padding:28px 30px; box-shadow:0 30px 70px -20px rgba(0,0,0,0.35);">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+        <div style="font-family:'Cormorant Garamond',serif; font-size:20px; font-weight:700;">{{ title }}</div>
+        <div onClick="{{ onClose }}" style="cursor:pointer; font-size:18px; color:var(--text-muted);">✕</div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px;">
+        <div style="grid-column: span 2;">
+          <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:5px;">Full name *</div>
+          <input type="text" value="{{ form.name }}" onChange="{{ onNameChange }}" style="width:100%; padding:9px 11px; border-radius:8px; border:1px solid var(--border); font-size:13.5px; outline:none;" />
+        </div>
+        <div>
+          <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:5px;">Phone</div>
+          <input type="text" value="{{ form.phone }}" onChange="{{ onPhoneChange }}" style="width:100%; padding:9px 11px; border-radius:8px; border:1px solid var(--border); font-size:13.5px; outline:none;" />
+        </div>
+        <div>
+          <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:5px;">Email</div>
+          <input type="text" value="{{ form.email }}" onChange="{{ onEmailChange }}" style="width:100%; padding:9px 11px; border-radius:8px; border:1px solid var(--border); font-size:13.5px; outline:none;" />
+        </div>
+        <div style="grid-column: span 2;">
+          <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:5px;">Address</div>
+          <input type="text" value="{{ form.address }}" onChange="{{ onAddressChange }}" style="width:100%; padding:9px 11px; border-radius:8px; border:1px solid var(--border); font-size:13.5px; outline:none;" />
+        </div>
+        <div>
+          <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:5px;">City</div>
+          <input type="text" value="{{ form.city }}" onChange="{{ onCityChange }}" style="width:100%; padding:9px 11px; border-radius:8px; border:1px solid var(--border); font-size:13.5px; outline:none;" />
+        </div>
+        <div>
+          <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:5px;">State</div>
+          <input type="text" value="{{ form.state }}" onChange="{{ onStateChange }}" style="width:100%; padding:9px 11px; border-radius:8px; border:1px solid var(--border); font-size:13.5px; outline:none;" />
+        </div>
+        <div>
+          <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:5px;">Pincode</div>
+          <input type="text" value="{{ form.pincode }}" onChange="{{ onPincodeChange }}" style="width:100%; padding:9px 11px; border-radius:8px; border:1px solid var(--border); font-size:13.5px; outline:none;" />
+        </div>
+        <div>
+          <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:5px;">ID proof (Aadhar)</div>
+          <input type="text" value="{{ form.aadharOrId }}" onChange="{{ onAadharChange }}" style="width:100%; padding:9px 11px; border-radius:8px; border:1px solid var(--border); font-size:13.5px; outline:none;" />
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px;">
+        <button onClick="{{ onClose }}" style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:10px 18px; font-size:13.5px; font-weight:600; cursor:pointer;">Cancel</button>
+        <button onClick="{{ onSave }}" style="background:var(--ink); color:#fff; border:none; border-radius:8px; padding:10px 18px; font-size:13.5px; font-weight:600; cursor:pointer;" style-hover="background:var(--ink-hover);">{{ saveLabel }}</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 600, &quot;height&quot;: 500}}">
+class Component extends DCLogic {
+  renderVals() {
+    const form = this.props.form || {};
+    const onChange = this.props.onChange || (() => {});
+    const field = (key) => (e) => onChange(key, e.target.value);
+    return {
+      show: !!this.props.show,
+      form,
+      title: this.props.isEdit ? 'Edit borrower' : 'New borrower',
+      saveLabel: this.props.isEdit ? 'Save changes' : 'Create borrower',
+      onNameChange: field('name'), onPhoneChange: field('phone'), onEmailChange: field('email'),
+      onAddressChange: field('address'), onCityChange: field('city'), onStateChange: field('state'),
+      onPincodeChange: field('pincode'), onAadharChange: field('aadharOrId'),
+      onSave: this.props.onSave, onClose: this.props.onClose
+    };
+  }
+}
+
+</script>
+</body>
+</html>

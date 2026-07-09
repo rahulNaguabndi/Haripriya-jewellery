@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<sc-if value="{{ show }}">
+  <div style="position:fixed; inset:0; background:rgba(28,20,16,0.45); display:flex; align-items:center; justify-content:center; z-index:1000; font-family:'Jost',sans-serif;">
+    <div style="width:440px; background:var(--surface); border-radius:14px; padding:28px 30px; box-shadow:0 30px 70px -20px rgba(0,0,0,0.35);">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+        <div style="font-family:'Cormorant Garamond',serif; font-size:20px; font-weight:700;">Record payment</div>
+        <div onClick="{{ onClose }}" style="cursor:pointer; font-size:18px; color:var(--text-muted);">✕</div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <div>
+          <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:5px;">Amount (₹) *</div>
+          <input type="number" value="{{ form.amount }}" onChange="{{ onAmountChange }}" style="width:100%; padding:9px 11px; border-radius:8px; border:1px solid var(--border); font-size:13.5px; outline:none;" />
+        </div>
+        <div>
+          <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:5px;">Payment date</div>
+          <input type="date" value="{{ form.paymentDate }}" onChange="{{ onDateChange }}" style="width:100%; padding:9px 11px; border-radius:8px; border:1px solid var(--border); font-size:13.5px; outline:none;" />
+        </div>
+        <div>
+          <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:5px;">Payment type</div>
+          <select value="{{ form.paymentType }}" onChange="{{ onTypeChange }}" style="width:100%; padding:9px 11px; border-radius:8px; border:1px solid var(--border); font-size:13.5px;">
+            <option value="cash">Cash</option>
+            <option value="cheque">Cheque</option>
+            <option value="transfer">Transfer</option>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:5px;">Notes</div>
+          <input type="text" value="{{ form.notes }}" onChange="{{ onNotesChange }}" style="width:100%; padding:9px 11px; border-radius:8px; border:1px solid var(--border); font-size:13.5px; outline:none;" />
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:22px;">
+        <button onClick="{{ onClose }}" style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:10px 18px; font-size:13.5px; font-weight:600; cursor:pointer;">Cancel</button>
+        <button onClick="{{ onSave }}" style="background:var(--ink); color:#fff; border:none; border-radius:8px; padding:10px 18px; font-size:13.5px; font-weight:600; cursor:pointer;" style-hover="background:var(--ink-hover);">Record payment</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 500, &quot;height&quot;: 460}}">
+class Component extends DCLogic {
+  renderVals() {
+    const form = this.props.form || {};
+    const onChange = this.props.onChange || (() => {});
+    const field = (key) => (e) => onChange(key, e.target.value);
+    return {
+      show: !!this.props.show,
+      form,
+      onAmountChange: field('amount'), onDateChange: field('paymentDate'), onTypeChange: field('paymentType'), onNotesChange: field('notes'),
+      onSave: this.props.onSave, onClose: this.props.onClose
+    };
+  }
+}
+
+</script>
+</body>
+</html>

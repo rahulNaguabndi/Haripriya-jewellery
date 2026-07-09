@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Jost:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</helmet>
+<div style="font-family:'Jost',sans-serif; color:var(--text);">
+  <div style="margin-bottom:20px;">
+    <div style="font-family:'Cormorant Garamond',serif; font-size:26px; font-weight:700;">Payments</div>
+    <div style="font-size:13px; color:var(--text-muted); margin-top:2px;">{{ count }} payments recorded</div>
+  </div>
+
+  <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px;">
+    <select value="{{ filters.loanId }}" onChange="{{ onLoanChange }}" style="padding:8px 10px; border-radius:7px; border:1px solid var(--border); font-size:13px; max-width:260px;">
+      <option value="all">All loans</option>
+      <sc-for list="{{ loanOptions }}" as="lo" hint-placeholder-count="4">
+        <option value="{{ lo._id }}">{{ lo.label }}</option>
+      </sc-for>
+    </select>
+    <div style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-muted);">
+      From <input type="date" value="{{ filters.dateFrom }}" onChange="{{ onFromChange }}" style="padding:7px 9px; border-radius:7px; border:1px solid var(--border); font-size:13px;" />
+      to <input type="date" value="{{ filters.dateTo }}" onChange="{{ onToChange }}" style="padding:7px 9px; border-radius:7px; border:1px solid var(--border); font-size:13px;" />
+    </div>
+    <div onClick="{{ onClearFilters }}" style="align-self:center; font-size:12.5px; color:var(--ink); font-weight:600; cursor:pointer;">Clear</div>
+  </div>
+
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden;">
+    <table style="width:100%; border-collapse:collapse; font-size:13px;">
+      <thead>
+        <tr style="background:var(--hover);">
+          <th style="text-align:left; padding:11px 20px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Date</th>
+          <th style="text-align:left; padding:11px 12px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Borrower</th>
+          <th style="text-align:left; padding:11px 12px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Loan</th>
+          <th style="text-align:left; padding:11px 12px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Type</th>
+          <th style="text-align:left; padding:11px 12px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Notes</th>
+          <th style="text-align:right; padding:11px 20px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        <sc-for list="{{ payments }}" as="p" hint-placeholder-count="8">
+          <tr onClick="{{ p.onClick }}" style="border-top:1px solid var(--divider); cursor:pointer;" style-hover="background:var(--hover);">
+            <td style="padding:12px 20px;">{{ p.paymentDateFmt }}</td>
+            <td style="padding:12px 12px; font-weight:600;">{{ p.borrowerName }}</td>
+            <td style="padding:12px 12px; color:var(--text-3);">{{ p.loanNumber }}</td>
+            <td style="padding:12px 12px; color:var(--text-muted); text-transform:capitalize;">{{ p.paymentType }}</td>
+            <td style="padding:12px 12px; color:var(--text-muted);">{{ p.notes }}</td>
+            <td style="padding:12px 20px; text-align:right; font-weight:700; color:#3d7a4f;">+{{ p.amountFmt }}</td>
+          </tr>
+        </sc-for>
+      </tbody>
+    </table>
+    <sc-if value="{{ isEmpty }}">
+      <div style="padding:32px; text-align:center; color:var(--text-muted); font-size:13.5px;">No payments match these filters.</div>
+    </sc-if>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1100, &quot;height&quot;: 600}}">
+class Component extends DCLogic {
+  renderVals() {
+    const payments = this.props.payments || [];
+    const onFilterChange = this.props.onFilterChange || (() => {});
+    const onOpenLoan = this.props.onOpenLoan || (() => {});
+    return {
+      payments: payments.map(p => ({ ...p, onClick: () => onOpenLoan(p.loanId) })),
+      count: payments.length,
+      isEmpty: payments.length === 0,
+      filters: this.props.filters || {},
+      loanOptions: this.props.loanOptions || [],
+      onLoanChange: (e) => onFilterChange('loanId', e.target.value),
+      onFromChange: (e) => onFilterChange('dateFrom', e.target.value),
+      onToChange: (e) => onFilterChange('dateTo', e.target.value),
+      onClearFilters: () => { onFilterChange('loanId', 'all'); onFilterChange('dateFrom', ''); onFilterChange('dateTo', ''); }
+    };
+  }
+}
+
+</script>
+</body>
+</html>

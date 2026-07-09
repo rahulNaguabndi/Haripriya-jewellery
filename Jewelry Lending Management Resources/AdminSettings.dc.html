@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Jost:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</helmet>
+<div style="font-family:'Jost',sans-serif; color:var(--text);">
+  <div style="margin-bottom:22px;">
+    <div style="font-family:'Cormorant Garamond',serif; font-size:26px; font-weight:700;">Admin settings</div>
+    <div style="font-size:13px; color:var(--text-muted); margin-top:2px;">Interest tiers &amp; admin user management</div>
+  </div>
+
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; margin-bottom:24px; overflow:hidden;">
+    <div style="padding:16px 20px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--divider);">
+      <div style="font-size:15px; font-weight:700;">Interest tier configuration</div>
+      <button onClick="{{ onEditTiers }}" style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;">Edit tiers</button>
+    </div>
+    <table style="width:100%; border-collapse:collapse; font-size:13px;">
+      <thead>
+        <tr style="background:var(--hover);">
+          <th style="text-align:left; padding:11px 20px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Range</th>
+          <th style="text-align:left; padding:11px 12px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Description</th>
+          <th style="text-align:right; padding:11px 20px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Rate</th>
+        </tr>
+      </thead>
+      <tbody>
+        <sc-for list="{{ tiers }}" as="t" hint-placeholder-count="2">
+          <tr style="border-top:1px solid var(--divider);">
+            <td style="padding:12px 20px; font-weight:600;">{{ t.rangeLabel }}</td>
+            <td style="padding:12px 12px; color:var(--text-muted);">{{ t.description }}</td>
+            <td style="padding:12px 20px; text-align:right; font-weight:700; color:var(--ink);">{{ t.interestRate }}%</td>
+          </tr>
+        </sc-for>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden;">
+    <div style="padding:16px 20px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--divider);">
+      <div style="font-size:15px; font-weight:700;">Admin users</div>
+      <button onClick="{{ onNewUser }}" style="background:var(--ink); color:#fff; border:none; border-radius:8px; padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer;" style-hover="background:var(--ink-hover);">+ New user</button>
+    </div>
+    <table style="width:100%; border-collapse:collapse; font-size:13px;">
+      <thead>
+        <tr style="background:var(--hover);">
+          <th style="text-align:left; padding:11px 20px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Name</th>
+          <th style="text-align:left; padding:11px 12px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Email</th>
+          <th style="text-align:left; padding:11px 12px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Role</th>
+          <th style="text-align:left; padding:11px 12px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Status</th>
+          <th style="text-align:right; padding:11px 20px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <sc-for list="{{ users }}" as="u" hint-placeholder-count="4">
+          <tr style="border-top:1px solid var(--divider);">
+            <td style="padding:12px 20px; font-weight:600;">{{ u.fullName }}</td>
+            <td style="padding:12px 12px; color:var(--text-muted);">{{ u.email }}</td>
+            <td style="padding:12px 12px; text-transform:capitalize;">{{ u.role }}</td>
+            <td style="padding:12px 12px;"><span style="background:{{ u.statusBg }}; color:{{ u.statusFg }}; padding:3px 10px; border-radius:20px; font-size:11.5px; font-weight:600;">{{ u.statusLabel }}</span></td>
+            <td style="padding:12px 20px; text-align:right;"><span onClick="{{ u.onToggle }}" style="font-size:12.5px; font-weight:600; color:var(--ink); cursor:pointer;">{{ u.toggleLabel }}</span></td>
+          </tr>
+        </sc-for>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1100, &quot;height&quot;: 700}}">
+class Component extends DCLogic {
+  renderVals() {
+    const tiers = (this.props.tiers || []).map(t => ({
+      ...t,
+      rangeLabel: '₹' + t.minAmount.toLocaleString('en-IN') + ' – ' + (t.maxAmount === null ? 'and above' : '₹' + t.maxAmount.toLocaleString('en-IN'))
+    }));
+    const onDeactivate = this.props.onDeactivateUser || (() => {});
+    const users = (this.props.adminUsers || []).map(u => ({
+      ...u,
+      statusBg: u.isActive ? '#eef4ee' : '#eeeeec',
+      statusFg: u.isActive ? '#3d7a4f' : 'var(--text-muted)',
+      statusLabel: u.isActive ? 'Active' : 'Inactive',
+      toggleLabel: u.isActive ? 'Deactivate' : 'Reactivate',
+      onToggle: () => onDeactivate(u._id)
+    }));
+    return { tiers, users, onEditTiers: this.props.onEditTiers, onNewUser: this.props.onNewUser };
+  }
+}
+
+</script>
+</body>
+</html>

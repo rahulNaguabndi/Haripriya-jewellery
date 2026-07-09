@@ -1,0 +1,176 @@
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams, Link } from 'react-router-dom';
+import { api } from '../services/api.js';
+import DataTable from '../components/common/DataTable.jsx';
+import StatusBadge from '../components/common/StatusBadge.jsx';
+import InterestSummaryCard from '../components/common/InterestSummaryCard.jsx';
+import LoanModal from '../components/Loans/LoanModal.jsx';
+import PaymentModal from '../components/Payments/PaymentModal.jsx';
+import LoanClosureModal from '../components/Loans/LoanClosureModal.jsx';
+import { formatCurrency, formatDate } from '../utils/formatters.js';
+
+const statuses = ['active', 'partial_payment', 'closed', 'defaulted'];
+
+export default function LoanDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [loan, setLoan] = useState(null);
+  const [error, setError] = useState('');
+  const [showEdit, setShowEdit] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
+  const [showClosure, setShowClosure] = useState(false);
+
+  async function load() {
+    try {
+      const res = await api.get(`/loans/${id}`);
+      setLoan(res.data);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  async function handleStatusChange(e) {
+    const status = e.target.value;
+    if (status === 'closed') {
+      setShowClosure(true);
+      return;
+    }
+    try {
+      await api.patch(`/loans/${id}/status`, { status });
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleConfirmClosure(closureDate, interestCollected) {
+    try {
+      await api.patch(`/loans/${id}/status`, { status: 'closed', closureDate, interestCollected });
+      setShowClosure(false);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  if (error) return <div style={{ color: 'var(--danger)' }}>{error}</div>;
+  if (!loan) return <div>Loading…</div>;
+
+  const paymentColumns = [
+    { key: 'payment_date', label: 'Date', render: (r) => formatDate(r.payment_date) },
+    { key: 'amount', label: 'Amount', render: (r) => formatCurrency(r.amount) },
+    { key: 'payment_type', label: 'Type' },
+    { key: 'notes', label: 'Notes' },
+  ];
+
+  return (
+    <div>
+      <button className="btn btn-secondary" style={{ marginBottom: 16 }} onClick={() => navigate('/loans')}>
+        ← Back to Loans
+      </button>
+
+      <div className="card" style={{ padding: 24, marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div className="font-serif" style={{ fontSize: 22, fontWeight: 600 }}>{loan.loan_number}</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 13.5, marginTop: 4 }}>
+              Borrower:{' '}
+              <Link to={`/borrowers/${loan.borrowers?.id}`} style={{ color: 'var(--gold-deep)', fontWeight: 600 }}>
+                {loan.borrowers?.name}
+              </Link>
+            </div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 13.5 }}>
+              {loan.item_type} · {loan.metal_type} {loan.weight ? `· ${loan.weight}g` : ''} {loan.purity ? `· ${loan.purity}` : ''}
+            </div>
+            {loan.description && <div style={{ color: 'var(--text-muted)', fontSize: 13.5 }}>{loan.description}</div>}
+          </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <select value={loan.status} onChange={handleStatusChange}>
+              {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <button className="btn btn-secondary" onClick={() => setShowEdit(true)}>Edit</button>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 24, marginTop: 18, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Loan Amount</div>
+            <div style={{ fontSize: 16, fontWeight: 600 }}>{formatCurrency(loan.loan_amount)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Loan Date</div>
+            <div style={{ fontSize: 16, fontWeight: 600 }}>{formatDate(loan.loan_date)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Due Date</div>
+            <div style={{ fontSize: 16, fontWeight: 600 }}>{formatDate(loan.due_date)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Total Received</div>
+            <div style={{ fontSize: 16, fontWeight: 600 }}>{formatCurrency(loan.total_payment_received)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Status</div>
+            <StatusBadge status={loan.status} />
+          </div>
+          {loan.status === 'closed' && (
+            <>
+              <div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Closure Date</div>
+                <div style={{ fontSize: 16, fontWeight: 600 }}>{formatDate(loan.closure_date)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Interest Collected</div>
+                <div style={{ fontSize: 16, fontWeight: 600 }}>{formatCurrency(loan.interest_collected)}</div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
+        <InterestSummaryCard interest={loan.interest} />
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div className="font-serif" style={{ fontSize: 18, fontWeight: 600 }}>Payment History</div>
+        <button className="btn btn-primary" onClick={() => setShowPayment(true)}>+ Add Payment</button>
+      </div>
+
+      <DataTable columns={paymentColumns} rows={loan.partialPayments} emptyMessage="No payments recorded yet." />
+
+      {showEdit && (
+        <LoanModal
+          loan={loan}
+          onClose={() => setShowEdit(false)}
+          onSaved={() => {
+            setShowEdit(false);
+            load();
+          }}
+        />
+      )}
+      {showPayment && (
+        <PaymentModal
+          loanId={loan.id}
+          onClose={() => setShowPayment(false)}
+          onSaved={() => {
+            setShowPayment(false);
+            load();
+          }}
+        />
+      )}
+      {showClosure && (
+        <LoanClosureModal
+          suggestedInterest={loan.interest?.totalInterestAccrued}
+          onConfirm={handleConfirmClosure}
+          onCancel={() => setShowClosure(false)}
+        />
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Jost:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</helmet>
+<div style="font-family:'Jost',sans-serif; color:var(--text);">
+  <div onClick="{{ onBack }}" style="font-size:13px; color:var(--ink); font-weight:600; cursor:pointer; margin-bottom:16px;">← Back to borrowers</div>
+
+  <sc-if value="{{ hasBorrower }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:24px;">
+      <div>
+        <div style="font-family:'Cormorant Garamond',serif; font-size:28px; font-weight:700;">{{ borrower.name }}</div>
+        <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">Borrower since {{ borrower.createdAtFmt }}</div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button onClick="{{ onEditClick }}" style="background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:9px 16px; font-size:13px; font-weight:600; cursor:pointer;">Edit details</button>
+        <button onClick="{{ onNewLoanClick }}" style="background:var(--ink); color:#fff; border:none; border-radius:8px; padding:9px 16px; font-size:13px; font-weight:600; cursor:pointer;" style-hover="background:var(--ink-hover);">+ New loan</button>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: 1fr 2fr; gap:20px; margin-bottom:28px;">
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:22px;">
+        <div style="font-size:13px; font-weight:700; margin-bottom:14px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.03em;">Contact</div>
+        <div style="display:flex; flex-direction:column; gap:12px; font-size:13.5px;">
+          <div><div style="color:var(--text-muted); font-size:11.5px; margin-bottom:2px;">Phone</div>{{ borrower.phone }}</div>
+          <div><div style="color:var(--text-muted); font-size:11.5px; margin-bottom:2px;">Email</div>{{ borrower.email }}</div>
+          <div><div style="color:var(--text-muted); font-size:11.5px; margin-bottom:2px;">Address</div>{{ borrower.address }}, {{ borrower.city }}, {{ borrower.state }} {{ borrower.pincode }}</div>
+          <div><div style="color:var(--text-muted); font-size:11.5px; margin-bottom:2px;">ID proof</div>{{ borrower.aadharOrId }}</div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:14px;">
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px;">
+          <div style="font-size:12px; color:var(--text-muted); font-weight:600; text-transform:uppercase;">Total loans</div>
+          <div style="font-size:24px; font-weight:700; margin-top:8px;">{{ borrower.loanCount }}</div>
+        </div>
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px;">
+          <div style="font-size:12px; color:var(--text-muted); font-weight:600; text-transform:uppercase;">Active loans</div>
+          <div style="font-size:24px; font-weight:700; margin-top:8px;">{{ borrower.activeLoanCount }}</div>
+        </div>
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px;">
+          <div style="font-size:12px; color:var(--text-muted); font-weight:600; text-transform:uppercase;">Outstanding</div>
+          <div style="font-size:22px; font-weight:700; margin-top:8px; color:var(--ink);">{{ borrower.totalOutstanding }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Loan history</div>
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden;">
+      <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <thead>
+          <tr style="background:var(--hover);">
+            <th style="text-align:left; padding:11px 20px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Loan</th>
+            <th style="text-align:left; padding:11px 12px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Item</th>
+            <th style="text-align:right; padding:11px 12px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Amount</th>
+            <th style="text-align:left; padding:11px 12px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Status</th>
+            <th style="text-align:right; padding:11px 20px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Due</th>
+          </tr>
+        </thead>
+        <tbody>
+          <sc-for list="{{ loans }}" as="l" hint-placeholder-count="3">
+            <tr onClick="{{ l.onClick }}" style="border-top:1px solid var(--divider); cursor:pointer;" style-hover="background:var(--hover);">
+              <td style="padding:12px 20px; font-weight:600;">{{ l.loanNumber }}</td>
+              <td style="padding:12px 12px; color:var(--text-3);">{{ l.itemType }} · {{ l.metalType }}</td>
+              <td style="padding:12px 12px; text-align:right; font-weight:600;">{{ l.loanAmountFmt }}</td>
+              <td style="padding:12px 12px;"><span style="background:{{ l.statusBg }}; color:{{ l.statusFg }}; padding:3px 10px; border-radius:20px; font-size:11.5px; font-weight:600; text-transform:capitalize;">{{ l.statusLabel }}</span></td>
+              <td style="padding:12px 20px; text-align:right; color:var(--text-muted);">{{ l.dueDateFmt }}</td>
+            </tr>
+          </sc-for>
+        </tbody>
+      </table>
+      <sc-if value="{{ noLoans }}">
+        <div style="padding:32px; text-align:center; color:var(--text-muted); font-size:13.5px;">No loans yet for this borrower.</div>
+      </sc-if>
+    </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1100, &quot;height&quot;: 700}}">
+class Component extends DCLogic {
+  renderVals() {
+    const borrower = this.props.borrower;
+    const loans = this.props.loans || [];
+    const onOpenLoan = this.props.onOpenLoan || (() => {});
+    return {
+      hasBorrower: !!borrower,
+      borrower: borrower || {},
+      loans: loans.map(l => ({ ...l, onClick: () => onOpenLoan(l._id) })),
+      noLoans: loans.length === 0,
+      onBack: this.props.onBack,
+      onEditClick: () => this.props.onEdit(borrower ? borrower._id : null),
+      onNewLoanClick: () => this.props.onNewLoan(borrower ? borrower._id : null)
+    };
+  }
+}
+
+</script>
+</body>
+</html>

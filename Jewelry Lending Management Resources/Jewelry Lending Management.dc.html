@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Jost:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #F7F1E6; }
+    html {
+      --bg: #F7F1E6; --surface: #FFFCF5; --border: #E6D8BC; --divider: #EFE3C9; --hover: #F3EAD6;
+      --text: #20160F; --text-muted: #8A7B5E; --text-3: #5A4630;
+      --ink: #16130F; --ink-hover: #2a2119; --gold: #CBA45C; --gold-deep: #B78C3C;
+      --danger-soft: #fbeceb;
+    }
+    html[data-theme="dark"] {
+      --bg: #14110D; --surface: #1E1A13; --border: #362E22; --divider: #2A231A; --hover: #29221A;
+      --text: #F3E9D2; --text-muted: #A2916F; --text-3: #C9B89A;
+      --ink: #0F0C08; --ink-hover: #1c170f; --gold: #CBA45C; --gold-deep: #D2B36A;
+      --danger-soft: #2a1512;
+    }
+    body { background: var(--bg); transition: background 0.2s ease; }
+    input, select, textarea { background: var(--surface); color: var(--text); }
+    ::selection { background: var(--gold); color: var(--ink); }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: #d8d3c7; border-radius: 4px; }
+    input, select, textarea { font-family: 'Jost', sans-serif; }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</helmet>
+
+<div style="font-family: 'Jost', sans-serif; background: var(--bg); min-height: 100vh; color: var(--text);">
+
+  <sc-if value="{{ isLoginPage }}" hint-placeholder-val="{{ true }}">
+    <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg);">
+      <div style="width: 380px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 40px 36px; box-shadow: 0 20px 50px -20px rgba(110,30,42,0.18);">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom: 6px;">
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--ink); display:flex; align-items:center; justify-content:center;">
+            <div style="font-family: 'Cormorant Garamond', serif; font-size: 15px; color: #F3E9D2;">H</div>
+          </div>
+          <div style="font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color:var(--text);">Haripriya Jewels</div>
+        </div>
+        <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 28px;">Lending management &mdash; staff sign in</div>
+
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          <div>
+            <div style="font-size: 12px; font-weight: 600; color: #6b6b66; margin-bottom: 6px;">Email</div>
+            <input type="text" value="{{ loginForm.email }}" onChange="{{ onLoginEmailChange }}" placeholder="staff@haripriyajewels.com" style="width:100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px; outline: none;" />
+          </div>
+          <div>
+            <div style="font-size: 12px; font-weight: 600; color: #6b6b66; margin-bottom: 6px;">Password</div>
+            <input type="password" value="{{ loginForm.password }}" onChange="{{ onLoginPasswordChange }}" placeholder="••••••••" style="width:100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px; outline: none;" />
+          </div>
+          <sc-if value="{{ loginForm.error }}">
+            <div style="font-size: 12px; color: #b3413a; background: var(--danger-soft); border-radius: 6px; padding: 8px 10px;">{{ loginForm.error }}</div>
+          </sc-if>
+          <button onClick="{{ onLogin }}" style="margin-top: 6px; background: var(--ink); color: #fff; border: none; border-radius: 8px; padding: 11px; font-size: 14px; font-weight: 600; cursor: pointer;" style-hover="background:var(--ink-hover);">Sign in</button>
+          <div style="font-size: 12px; color: var(--text-muted); text-align: center; margin-top: 4px;">Demo — any email &amp; password works</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isAppShell }}">
+    <div style="min-height: 100vh; display:flex; flex-direction:column;">
+
+      <!-- Top nav bar -->
+      <div style="background: var(--ink); color: #C9B89A; display:flex; align-items:center; gap: 28px; padding: 0 32px; height: 62px; position:sticky; top:0; z-index:50;">
+        <div style="display:flex; align-items:center; gap:11px;">
+          <div style="width: 30px; height: 30px; border-radius: 7px; border:1px solid var(--gold); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <div style="font-family: 'Cormorant Garamond', serif; font-size: 17px; color: var(--gold);">H</div>
+          </div>
+          <div style="font-family: 'Cormorant Garamond', serif; font-size: 19px; font-weight: 600; color: #F3E9D2; letter-spacing: 0.01em;">Haripriya</div>
+        </div>
+
+        <div style="display:flex; align-items:stretch; gap: 2px; height:100%; margin-left: 12px;">
+          <sc-for list="{{ navItems }}" as="nav" hint-placeholder-count="6">
+            <div onClick="{{ nav.onClick }}" style="display:flex; align-items:center; padding: 0 15px; cursor:pointer; font-size: 13px; font-weight: 500; letter-spacing:0.02em; color:{{ nav.color }}; border-bottom: 2px solid {{ nav.underline }};" style-hover="color:var(--bg);">{{ nav.label }}</div>
+          </sc-for>
+        </div>
+
+        <div style="margin-left:auto; display:flex; align-items:center; gap:16px;">
+          <div onClick="{{ onToggleTheme }}" style="width:44px; height:24px; border-radius:12px; border:1px solid #3a3229; background:rgba(0,0,0,0.2); cursor:pointer; position:relative;" title="Toggle dark / light theme">
+            <div style="position:absolute; top:2px; left:{{ themeKnobLeft }}; width:18px; height:18px; border-radius:50%; background:var(--gold); transition:left 0.18s ease;"></div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size: 12.5px; font-weight: 600; color: #F3E9D2;">Priya Sharma</div>
+            <div style="font-size: 10.5px; color: var(--text-muted); letter-spacing:0.05em; text-transform:uppercase;">super_admin</div>
+          </div>
+          <div onClick="{{ onLogout }}" style="font-size: 12px; color: var(--gold); cursor:pointer; border:1px solid #3a3229; border-radius:7px; padding:7px 12px;" style-hover="border-color:var(--gold);">Sign out</div>
+        </div>
+      </div>
+
+      <!-- Main -->
+      <div style="flex: 1; min-width: 0; max-width: 1180px; width:100%; margin:0 auto; padding: 32px 32px 64px 32px;">
+
+        <sc-if value="{{ isDashboard }}">
+          <dc-import name="Dashboard" hint-size="100%,600px"
+            counts="{{ dashboardCounts }}" borrowers="{{ dashSearchBorrowers }}" loans="{{ dashSearchLoans }}"
+            recentActivity="{{ recentActivity }}" overdue="{{ overdueBrief }}"
+            onOpenBorrower="{{ openBorrower }}" onOpenLoan="{{ openLoan }}"
+            onNewBorrower="{{ openNewBorrowerModal }}" onNewLoan="{{ openNewLoanModal }}"
+            onGoLoans="{{ goLoans }}" onGoBorrowers="{{ goBorrowers }}" onGoReports="{{ goReports }}" onGoPayments="{{ goPayments }}">
+          </dc-import>
+        </sc-if>
+
+        <sc-if value="{{ isBorrowersList }}">
+          <dc-import name="BorrowersList" hint-size="100%,600px"
+            borrowers="{{ filteredBorrowers }}" search="{{ borrowerSearch }}" onSearchChange="{{ onBorrowerSearchChange }}"
+            onOpenBorrower="{{ openBorrower }}" onNewBorrower="{{ openNewBorrowerModal }}">
+          </dc-import>
+        </sc-if>
+
+        <sc-if value="{{ isBorrowerDetail }}">
+          <dc-import name="BorrowerDetail" hint-size="100%,600px"
+            borrower="{{ selectedBorrower }}" loans="{{ selectedBorrowerLoans }}"
+            onBack="{{ goBorrowers }}" onEdit="{{ openEditBorrowerModal }}" onOpenLoan="{{ openLoan }}" onNewLoan="{{ openNewLoanModalForBorrower }}">
+          </dc-import>
+        </sc-if>
+
+        <sc-if value="{{ isLoansList }}">
+          <dc-import name="LoansList" hint-size="100%,600px"
+            loans="{{ filteredLoans }}" filters="{{ loanFilters }}" onFilterChange="{{ onLoanFilterChange }}"
+            onOpenLoan="{{ openLoan }}" onNewLoan="{{ openNewLoanModal }}" itemTypes="{{ itemTypeOptions }}" metalTypes="{{ metalTypeOptions }}">
+          </dc-import>
+        </sc-if>
+
+        <sc-if value="{{ isLoanDetail }}">
+          <dc-import name="LoanDetail" hint-size="100%,600px"
+            loan="{{ selectedLoanEnriched }}" onBack="{{ goLoans }}" onEdit="{{ openEditLoanModal }}"
+            onAddPayment="{{ openPaymentModalForLoan }}" onChangeStatus="{{ onChangeLoanStatus }}">
+          </dc-import>
+        </sc-if>
+
+        <sc-if value="{{ isPaymentsList }}">
+          <dc-import name="PaymentsList" hint-size="100%,600px"
+            payments="{{ filteredPayments }}" filters="{{ paymentFilters }}" onFilterChange="{{ onPaymentFilterChange }}"
+            loanOptions="{{ loanOptionsForFilter }}" onOpenLoan="{{ openLoan }}">
+          </dc-import>
+        </sc-if>
+
+        <sc-if value="{{ isReports }}">
+          <dc-import name="Reports" hint-size="100%,600px"
+            summary="{{ reportSummary }}" outstandingInterest="{{ outstandingInterestReport }}"
+            overdue="{{ overdueLoansEnriched }}" borrowerSummary="{{ borrowerSummaryReport }}" onOpenLoan="{{ openLoan }}">
+          </dc-import>
+        </sc-if>
+
+        <sc-if value="{{ isAdmin }}">
+          <dc-import name="AdminSettings" hint-size="100%,600px"
+            tiers="{{ interestConfig.tiers }}" onEditTiers="{{ openTierModal }}"
+            adminUsers="{{ adminUsers }}" onNewUser="{{ openNewAdminUserModal }}" onDeactivateUser="{{ onDeactivateUser }}">
+          </dc-import>
+        </sc-if>
+
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- Modals -->
+  <dc-import name="BorrowerModal" hint-size="100%,100%" show="{{ showBorrowerModal }}" form="{{ borrowerForm }}" isEdit="{{ !!editingBorrowerId }}" onChange="{{ onBorrowerFormChange }}" onSave="{{ onSaveBorrower }}" onClose="{{ closeBorrowerModal }}"></dc-import>
+  <dc-import name="LoanModal" hint-size="100%,100%" show="{{ showLoanModal }}" form="{{ loanForm }}" isEdit="{{ !!editingLoanId }}" borrowers="{{ borrowers }}" itemTypes="{{ itemTypeOptions }}" metalTypes="{{ metalTypeOptions }}" onChange="{{ onLoanFormChange }}" onSave="{{ onSaveLoan }}" onClose="{{ closeLoanModal }}"></dc-import>
+  <dc-import name="PaymentModal" hint-size="100%,100%" show="{{ showPaymentModal }}" form="{{ paymentForm }}" onChange="{{ onPaymentFormChange }}" onSave="{{ onSavePayment }}" onClose="{{ closePaymentModal }}"></dc-import>
+  <dc-import name="TierModal" hint-size="100%,100%" show="{{ showTierModal }}" tiers="{{ tierDraft }}" onChange="{{ onTierDraftChange }}" onAddTier="{{ onAddTier }}" onRemoveTier="{{ onRemoveTier }}" onSave="{{ onSaveTiers }}" onClose="{{ closeTierModal }}"></dc-import>
+  <dc-import name="AdminUserModal" hint-size="100%,100%" show="{{ showAdminUserModal }}" form="{{ adminUserForm }}" onChange="{{ onAdminUserFormChange }}" onSave="{{ onSaveAdminUser }}" onClose="{{ closeAdminUserModal }}"></dc-import>
+
+  <sc-if value="{{ toast }}">
+    <div style="position: fixed; bottom: 24px; right: 24px; background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 10px; font-size: 13.5px; font-weight: 500; box-shadow: 0 10px 30px rgba(0,0,0,0.25); animation: toastIn 0.25s ease;">{{ toast }}</div>
+  </sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+
+// ---------- Helpers ----------
+function fmtCurrency(n) {
+  if (n === null || n === undefined || isNaN(n)) return '₹0';
+  return '₹' + Math.round(n).toLocaleString('en-IN');
+}
+function fmtDate(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function daysBetween(a, b) {
+  return (new Date(b) - new Date(a)) / (1000 * 60 * 60 * 24);
+}
+function getApplicableTier(tiers, amount) {
+  return tiers.find(t => amount >= t.minAmount && (t.maxAmount === null || amount <= t.maxAmount)) || tiers[tiers.length - 1];
+}
+function calcLoanInterest(loan, tiers) {
+  const payments = (loan.partialPayments || []).slice().sort((a, b) => new Date(a.paymentDate) - new Date(b.paymentDate));
+  let remainingPrincipal = loan.loanAmount;
+  let totalInterest = 0;
+  let currentDate = new Date(loan.loanDate);
+  let currentRate = loan.interestRate;
+  const today = new Date();
+
+  for (const p of payments) {
+    const pDate = new Date(p.paymentDate);
+    const years = Math.max(0, daysBetween(currentDate, pDate) / 365);
+    const amt = remainingPrincipal * Math.pow(1 + currentRate / 100, years);
+    totalInterest += (amt - remainingPrincipal);
+    remainingPrincipal -= p.amount;
+    currentDate = pDate;
+    const tier = getApplicableTier(tiers, Math.max(remainingPrincipal, 0));
+    if (tier) currentRate = tier.interestRate;
+  }
+  const finalYears = Math.max(0, daysBetween(currentDate, today) / 365);
+  const finalAmt = remainingPrincipal * Math.pow(1 + currentRate / 100, finalYears);
+  const finalInterest = finalAmt - remainingPrincipal;
+  totalInterest += finalInterest;
+
+  return {
+    principalRemaining: Math.round(remainingPrincipal * 100) / 100,
+    totalInterestAccrued: Math.round(totalInterest * 100) / 100,
+    totalAmountDue: Math.round((remainingPrincipal + totalInterest) * 100) / 100,
+    daysElapsed: Math.round(daysBetween(loan.loanDate, today)),
+    appliedRate: currentRate
+  };
+}
+function genLoanNumber(existing) {
+  const today = new Date();
+  const ymd = today.getFullYear() + String(today.getMonth() + 1).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
+  const n = existing.filter(l => l.loanNumber.includes(ymd)).length + 1;
+  return 'LOAN-' + ymd + '-' + String(n).padStart(3, '0');
+}
+function uid(prefix) { return prefix + '_' + Math.random().toString(36).slice(2, 9); }
+
+const STATUS_COLORS = {
+  active: { bg: '#eef4ee', fg: '#3d7a4f' },
+  closed: { bg: '#eeeeec', fg: '#6b6b66' },
+  defaulted: { bg: 'var(--danger-soft)', fg: '#b3413a' },
+  partial_payment: { bg: '#faf1e3', fg: '#a97a2a' }
+};
+
+function seedData() {
+  const borrowers = [
+    { _id: 'b1', name: 'Kavya Reddy', phone: '9840012345', email: 'kavya.reddy@gmail.com', address: '14 Anna Nagar 2nd St', city: 'Chennai', state: 'Tamil Nadu', pincode: '600040', aadharOrId: 'XXXX-XXXX-4521', createdAt: '2025-11-02' },
+    { _id: 'b2', name: 'Ramesh Iyer', phone: '9884023456', email: 'ramesh.iyer@yahoo.com', address: '22 Gandhi Road', city: 'Coimbatore', state: 'Tamil Nadu', pincode: '641001', aadharOrId: 'XXXX-XXXX-7734', createdAt: '2025-09-14' },
+    { _id: 'b3', name: 'Fatima Sheikh', phone: '9791134567', email: 'fatima.s@gmail.com', address: '9 Marine Drive', city: 'Kochi', state: 'Kerala', pincode: '682001', aadharOrId: 'XXXX-XXXX-9012', createdAt: '2026-01-20' },
+    { _id: 'b4', name: 'Suresh Nair', phone: '9847045678', email: 'suresh.nair@gmail.com', address: '3 Palm Grove', city: 'Trivandrum', state: 'Kerala', pincode: '695001', aadharOrId: 'XXXX-XXXX-3345', createdAt: '2025-12-05' },
+    { _id: 'b5', name: 'Meena Krishnan', phone: '9994056789', email: 'meena.k@gmail.com', address: '55 Race Course Rd', city: 'Coimbatore', state: 'Tamil Nadu', pincode: '641018', aadharOrId: 'XXXX-XXXX-1189', createdAt: '2026-02-11' },
+    { _id: 'b6', name: 'Arjun Menon', phone: '9645067890', email: 'arjun.menon@gmail.com', address: '17 Beach Road', city: 'Chennai', state: 'Tamil Nadu', pincode: '600028', aadharOrId: 'XXXX-XXXX-6620', createdAt: '2026-03-03' },
+    { _id: 'b7', name: 'Divya Prakash', phone: '9003078901', email: 'divya.p@gmail.com', address: '81 Lake View Colony', city: 'Madurai', state: 'Tamil Nadu', pincode: '625001', aadharOrId: 'XXXX-XXXX-8843', createdAt: '2026-04-18' }
+  ];
+
+  const loans = [
+    { _id: 'l1', borrowerId: 'b1', loanNumber: 'LOAN-20251103-001', itemType: 'Necklace', metalType: 'Gold', weight: 42.5, purity: '22k', description: 'Traditional gold necklace with ruby stones', loanAmount: 185000, loanDate: '2025-11-03', dueDate: '2026-11-03', status: 'active', interestRate: 24, interestType: 'compound_annual', partialPayments: [{ amount: 15000, paymentDate: '2026-02-10', notes: 'Partial repayment' }] },
+    { _id: 'l2', borrowerId: 'b2', loanNumber: 'LOAN-20250915-002', itemType: 'Bangles', metalType: 'Gold', weight: 68.0, purity: '22k', description: 'Pair of gold bangles', loanAmount: 320000, loanDate: '2025-09-15', dueDate: '2026-09-15', status: 'active', interestRate: 24, interestType: 'compound_annual', partialPayments: [] },
+    { _id: 'l3', borrowerId: 'b3', loanNumber: 'LOAN-20260121-003', itemType: 'Ring', metalType: 'Gold', weight: 6.2, purity: '18k', description: 'Solitaire engagement ring', loanAmount: 45000, loanDate: '2026-01-21', dueDate: '2026-07-21', status: 'active', interestRate: 24, interestType: 'compound_annual', partialPayments: [] },
+    { _id: 'l4', borrowerId: 'b4', loanNumber: 'LOAN-20251206-004', itemType: 'Chain', metalType: 'Gold', weight: 18.0, purity: '22k', description: 'Plain gold chain', loanAmount: 78000, loanDate: '2025-12-06', dueDate: '2026-06-06', status: 'defaulted', interestRate: 24, interestType: 'compound_annual', partialPayments: [] },
+    { _id: 'l5', borrowerId: 'b5', loanNumber: 'LOAN-20260212-005', itemType: 'Earrings', metalType: 'Gold', weight: 12.8, purity: '22k', description: 'Jhumka style earrings', loanAmount: 62000, loanDate: '2026-02-12', dueDate: '2026-08-12', status: 'partial_payment', interestRate: 24, interestType: 'compound_annual', partialPayments: [{ amount: 20000, paymentDate: '2026-04-01', notes: 'Cash repayment' }, { amount: 10000, paymentDate: '2026-05-15', notes: '' }] },
+    { _id: 'l6', borrowerId: 'b6', loanNumber: 'LOAN-20260304-006', itemType: 'Ring', metalType: 'Silver', weight: 9.5, purity: '925', description: 'Silver statement ring', loanAmount: 3200, loanDate: '2026-03-04', dueDate: '2026-06-04', status: 'active', interestRate: 36, interestType: 'compound_annual', partialPayments: [] },
+    { _id: 'l7', borrowerId: 'b1', loanNumber: 'LOAN-20260410-007', itemType: 'Bracelet', metalType: 'Gold', weight: 15.0, purity: '22k', description: 'Kada style bracelet', loanAmount: 58000, loanDate: '2026-04-10', dueDate: '2026-10-10', status: 'active', interestRate: 24, interestType: 'compound_annual', partialPayments: [] },
+    { _id: 'l8', borrowerId: 'b7', loanNumber: 'LOAN-20260419-008', itemType: 'Necklace', metalType: 'Gold', weight: 55.0, purity: '22k', description: 'Bridal necklace set', loanAmount: 410000, loanDate: '2026-04-19', dueDate: '2027-04-19', status: 'active', interestRate: 24, interestType: 'compound_annual', partialPayments: [] },
+    { _id: 'l9', borrowerId: 'b2', loanNumber: 'LOAN-20260115-009', itemType: 'Pendant', metalType: 'Platinum', weight: 8.0, purity: '950', description: 'Diamond pendant', loanAmount: 96000, loanDate: '2026-01-15', dueDate: '2026-07-15', status: 'closed', interestRate: 24, interestType: 'compound_annual', partialPayments: [{ amount: 96000, paymentDate: '2026-05-01', notes: 'Full closure with interest' }] },
+    { _id: 'l10', borrowerId: 'b3', loanNumber: 'LOAN-20260528-010', itemType: 'Ring', metalType: 'Gold', weight: 4.1, purity: '22k', description: 'Small gold ring', loanAmount: 800, loanDate: '2026-05-28', dueDate: '2026-08-28', status: 'active', interestRate: 36, interestType: 'compound_annual', partialPayments: [] }
+  ];
+
+  const interestConfig = {
+    tiers: [
+      { minAmount: 0, maxAmount: 999, interestRate: 36, description: 'Small loans' },
+      { minAmount: 1000, maxAmount: null, interestRate: 24, description: 'Standard loans' }
+    ],
+    compoundingFrequency: 'annual'
+  };
+
+  const adminUsers = [
+    { _id: 'u1', email: 'priya.sharma@haripriyajewels.com', fullName: 'Priya Sharma', role: 'super_admin', isActive: true, lastLogin: '2026-07-06' },
+    { _id: 'u2', email: 'vikram.das@haripriyajewels.com', fullName: 'Vikram Das', role: 'admin', isActive: true, lastLogin: '2026-07-04' },
+    { _id: 'u3', email: 'anita.rao@haripriyajewels.com', fullName: 'Anita Rao', role: 'staff', isActive: true, lastLogin: '2026-06-30' },
+    { _id: 'u4', email: 'karthik.s@haripriyajewels.com', fullName: 'Karthik S', role: 'staff', isActive: false, lastLogin: '2026-04-11' }
+  ];
+
+  return { borrowers, loans, interestConfig, adminUsers };
+}
+
+const EMPTY_BORROWER_FORM = { name: '', phone: '', email: '', address: '', city: '', state: '', pincode: '', aadharOrId: '' };
+const EMPTY_LOAN_FORM = { borrowerId: '', itemType: 'Ring', metalType: 'Gold', weight: '', purity: '', description: '', loanAmount: '', loanDate: new Date().toISOString().slice(0, 10), dueDate: '' };
+const EMPTY_PAYMENT_FORM = { loanId: '', amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentType: 'cash', notes: '' };
+const EMPTY_ADMIN_USER_FORM = { email: '', fullName: '', role: 'staff' };
+
+class Component extends DCLogic {
+  state = (() => {
+    const seed = seedData();
+    return {
+      page: 'login',
+      loggedIn: false,
+      loginForm: { email: '', password: '', error: '' },
+      borrowers: seed.borrowers,
+      loans: seed.loans,
+      interestConfig: seed.interestConfig,
+      adminUsers: seed.adminUsers,
+      selectedBorrowerId: null,
+      selectedLoanId: null,
+      borrowerSearch: '',
+      loanFilters: { status: 'all', metalType: 'all', itemType: 'all', minAmount: '', maxAmount: '', borrowerId: 'all' },
+      paymentFilters: { dateFrom: '', dateTo: '', loanId: 'all' },
+      dashboardVariant: 'A',
+
+      showBorrowerModal: false, borrowerForm: { ...EMPTY_BORROWER_FORM }, editingBorrowerId: null,
+      showLoanModal: false, loanForm: { ...EMPTY_LOAN_FORM }, editingLoanId: null, loanModalBorrowerId: null,
+      showPaymentModal: false, paymentForm: { ...EMPTY_PAYMENT_FORM },
+      showTierModal: false, tierDraft: [],
+      showAdminUserModal: false, adminUserForm: { ...EMPTY_ADMIN_USER_FORM },
+      toast: null,
+      theme: (typeof localStorage !== 'undefined' && localStorage.getItem('haripriya_theme')) || 'light'
+    };
+  })();
+
+  componentDidMount() {
+    if (typeof document !== 'undefined') document.documentElement.setAttribute('data-theme', this.state.theme);
+  }
+
+  onToggleTheme = () => {
+    const next = this.state.theme === 'dark' ? 'light' : 'dark';
+    this.setState({ theme: next });
+    if (typeof document !== 'undefined') document.documentElement.setAttribute('data-theme', next);
+    if (typeof localStorage !== 'undefined') localStorage.setItem('haripriya_theme', next);
+  };
+
+  showToast(msg) {
+    this.setState({ toast: msg });
+    setTimeout(() => this.setState({ toast: null }), 2400);
+  }
+
+  // ---------- Login ----------
+  onLoginEmailChange = (e) => this.setState(s => ({ loginForm: { ...s.loginForm, email: e.target.value, error: '' } }));
+  onLoginPasswordChange = (e) => this.setState(s => ({ loginForm: { ...s.loginForm, password: e.target.value, error: '' } }));
+  onLogin = () => {
+    const { email, password } = this.state.loginForm;
+    if (!email || !password) {
+      this.setState(s => ({ loginForm: { ...s.loginForm, error: 'Enter email and password' } }));
+      return;
+    }
+    this.setState({ loggedIn: true, page: 'dashboard' });
+  };
+  onLogout = () => this.setState({ loggedIn: false, page: 'login', loginForm: { email: '', password: '', error: '' } });
+
+  // ---------- Nav ----------
+  goDashboard = () => this.setState({ page: 'dashboard' });
+  goBorrowers = () => this.setState({ page: 'borrowers', selectedBorrowerId: null });
+  goLoans = () => this.setState({ page: 'loans', selectedLoanId: null });
+  goPayments = () => this.setState({ page: 'payments' });
+  goReports = () => this.setState({ page: 'reports' });
+  goAdmin = () => this.setState({ page: 'admin' });
+
+  openBorrower = (id) => this.setState({ page: 'borrowerDetail', selectedBorrowerId: id });
+  openLoan = (id) => this.setState({ page: 'loanDetail', selectedLoanId: id });
+
+  onDashboardVariantChange = (v) => this.setState({ dashboardVariant: v });
+
+  // ---------- Borrower search / filters ----------
+  onBorrowerSearchChange = (e) => this.setState({ borrowerSearch: e.target.value });
+  onLoanFilterChange = (key, value) => this.setState(s => ({ loanFilters: { ...s.loanFilters, [key]: value } }));
+  onPaymentFilterChange = (key, value) => this.setState(s => ({ paymentFilters: { ...s.paymentFilters, [key]: value } }));
+
+  // ---------- Borrower modal ----------
+  openNewBorrowerModal = () => this.setState({ showBorrowerModal: true, editingBorrowerId: null, borrowerForm: { ...EMPTY_BORROWER_FORM } });
+  openEditBorrowerModal = (id) => {
+    const b = this.state.borrowers.find(x => x._id === id);
+    this.setState({ showBorrowerModal: true, editingBorrowerId: id, borrowerForm: { ...b } });
+  };
+  closeBorrowerModal = () => this.setState({ showBorrowerModal: false });
+  onBorrowerFormChange = (key, value) => this.setState(s => ({ borrowerForm: { ...s.borrowerForm, [key]: value } }));
+  onSaveBorrower = () => {
+    const { borrowerForm, editingBorrowerId } = this.state;
+    if (!borrowerForm.name) { this.showToast('Name is required'); return; }
+    if (editingBorrowerId) {
+      this.setState(s => ({
+        borrowers: s.borrowers.map(b => b._id === editingBorrowerId ? { ...b, ...borrowerForm } : b),
+        showBorrowerModal: false
+      }));
+      this.showToast('Borrower updated');
+    } else {
+      const newB = { ...borrowerForm, _id: uid('b'), createdAt: new Date().toISOString().slice(0, 10) };
+      this.setState(s => ({ borrowers: [newB, ...s.borrowers], showBorrowerModal: false }));
+      this.showToast('Borrower created');
+    }
+  };
+
+  // ---------- Loan modal ----------
+  openNewLoanModal = () => this.setState({ showLoanModal: true, editingLoanId: null, loanForm: { ...EMPTY_LOAN_FORM, borrowerId: this.state.borrowers[0] ? this.state.borrowers[0]._id : '' } });
+  openNewLoanModalForBorrower = (borrowerId) => this.setState({ showLoanModal: true, editingLoanId: null, loanForm: { ...EMPTY_LOAN_FORM, borrowerId } });
+  openEditLoanModal = (id) => {
+    const l = this.state.loans.find(x => x._id === id);
+    this.setState({ showLoanModal: true, editingLoanId: id, loanForm: { ...l } });
+  };
+  closeLoanModal = () => this.setState({ showLoanModal: false });
+  onLoanFormChange = (key, value) => this.setState(s => ({ loanForm: { ...s.loanForm, [key]: value } }));
+  onSaveLoan = () => {
+    const { loanForm, editingLoanId, loans, interestConfig } = this.state;
+    if (!loanForm.borrowerId || !loanForm.loanAmount) { this.showToast('Borrower and amount are required'); return; }
+    const amount = parseFloat(loanForm.loanAmount);
+    const tier = getApplicableTier(interestConfig.tiers, amount);
+    if (editingLoanId) {
+      this.setState(s => ({
+        loans: s.loans.map(l => l._id === editingLoanId ? { ...l, ...loanForm, loanAmount: amount, weight: parseFloat(loanForm.weight) || 0 } : l),
+        showLoanModal: false
+      }));
+      this.showToast('Loan updated');
+    } else {
+      const newLoan = {
+        ...loanForm,
+        _id: uid('l'),
+        loanAmount: amount,
+        weight: parseFloat(loanForm.weight) || 0,
+        loanNumber: genLoanNumber(loans),
+        status: 'active',
+        interestRate: tier.interestRate,
+        interestType: 'compound_annual',
+        partialPayments: [],
+        dueDate: loanForm.dueDate || new Date(new Date(loanForm.loanDate).setMonth(new Date(loanForm.loanDate).getMonth() + 6)).toISOString().slice(0, 10)
+      };
+      this.setState(s => ({ loans: [newLoan, ...s.loans], showLoanModal: false }));
+      this.showToast('Loan created — ' + newLoan.loanNumber);
+    }
+  };
+  onChangeLoanStatus = (loanId, status) => {
+    this.setState(s => ({ loans: s.loans.map(l => l._id === loanId ? { ...l, status } : l) }));
+    this.showToast('Status updated');
+  };
+
+  // ---------- Payment modal ----------
+  openPaymentModalForLoan = (loanId) => this.setState({ showPaymentModal: true, paymentForm: { ...EMPTY_PAYMENT_FORM, loanId } });
+  closePaymentModal = () => this.setState({ showPaymentModal: false });
+  onPaymentFormChange = (key, value) => this.setState(s => ({ paymentForm: { ...s.paymentForm, [key]: value } }));
+  onSavePayment = () => {
+    const { paymentForm, loans } = this.state;
+    const amount = parseFloat(paymentForm.amount);
+    if (!paymentForm.loanId || !amount) { this.showToast('Amount is required'); return; }
+    this.setState(s => ({
+      loans: s.loans.map(l => {
+        if (l._id !== paymentForm.loanId) return l;
+        const payments = [...(l.partialPayments || []), { amount, paymentDate: paymentForm.paymentDate, notes: paymentForm.notes, paymentType: paymentForm.paymentType }];
+        const totalPaid = payments.reduce((a, p) => a + p.amount, 0);
+        let status = l.status;
+        if (amount >= l.loanAmount * 0.98 && totalPaid >= l.loanAmount) status = 'closed';
+        else status = 'partial_payment';
+        return { ...l, partialPayments: payments, status };
+      }),
+      showPaymentModal: false
+    }));
+    this.showToast('Payment recorded');
+  };
+
+  // ---------- Tier modal ----------
+  openTierModal = () => this.setState({ showTierModal: true, tierDraft: this.state.interestConfig.tiers.map(t => ({ ...t })) });
+  closeTierModal = () => this.setState({ showTierModal: false });
+  onTierDraftChange = (idx, key, value) => this.setState(s => ({
+    tierDraft: s.tierDraft.map((t, i) => i === idx ? { ...t, [key]: value } : t)
+  }));
+  onAddTier = () => this.setState(s => ({ tierDraft: [...s.tierDraft, { minAmount: 0, maxAmount: null, interestRate: 24, description: 'New tier' }] }));
+  onRemoveTier = (idx) => this.setState(s => ({ tierDraft: s.tierDraft.filter((_, i) => i !== idx) }));
+  onSaveTiers = () => {
+    const tiers = this.state.tierDraft.map(t => ({
+      minAmount: parseFloat(t.minAmount) || 0,
+      maxAmount: t.maxAmount === '' || t.maxAmount === null ? null : parseFloat(t.maxAmount),
+      interestRate: parseFloat(t.interestRate) || 0,
+      description: t.description || ''
+    })).sort((a, b) => a.minAmount - b.minAmount);
+    this.setState(s => ({ interestConfig: { ...s.interestConfig, tiers }, showTierModal: false }));
+    this.showToast('Interest tiers updated');
+  };
+
+  // ---------- Admin user modal ----------
+  openNewAdminUserModal = () => this.setState({ showAdminUserModal: true, adminUserForm: { ...EMPTY_ADMIN_USER_FORM } });
+  closeAdminUserModal = () => this.setState({ showAdminUserModal: false });
+  onAdminUserFormChange = (key, value) => this.setState(s => ({ adminUserForm: { ...s.adminUserForm, [key]: value } }));
+  onSaveAdminUser = () => {
+    const { adminUserForm } = this.state;
+    if (!adminUserForm.email || !adminUserForm.fullName) { this.showToast('Email and name required'); return; }
+    const newUser = { ...adminUserForm, _id: uid('u'), isActive: true, lastLogin: null };
+    this.setState(s => ({ adminUsers: [...s.adminUsers, newUser], showAdminUserModal: false }));
+    this.showToast('Admin user created');
+  };
+  onDeactivateUser = (id) => {
+    this.setState(s => ({ adminUsers: s.adminUsers.map(u => u._id === id ? { ...u, isActive: !u.isActive } : u) }));
+  };
+
+  renderVals() {
+    const s = this.state;
+    const page = s.page;
+
+    // Enrich loans with borrower name + interest calc
+    const enrichLoan = (l) => {
+      const borrower = s.borrowers.find(b => b._id === l.borrowerId);
+      const interest = calcLoanInterest(l, s.interestConfig.tiers);
+      const sc = STATUS_COLORS[l.status] || STATUS_COLORS.active;
+      const totalPaid = (l.partialPayments || []).reduce((a, p) => a + p.amount, 0);
+      return {
+        ...l,
+        borrowerName: borrower ? borrower.name : 'Unknown',
+        loanAmountFmt: fmtCurrency(l.loanAmount),
+        loanDateFmt: fmtDate(l.loanDate),
+        dueDateFmt: fmtDate(l.dueDate),
+        isOverdue: l.status === 'active' && new Date(l.dueDate) < new Date(),
+        statusBg: sc.bg, statusFg: sc.fg,
+        statusLabel: l.status.replace('_', ' '),
+        totalPaidFmt: fmtCurrency(totalPaid),
+        interest,
+        interestAccruedFmt: fmtCurrency(interest.totalInterestAccrued),
+        totalDueFmt: fmtCurrency(interest.totalAmountDue),
+        principalRemainingFmt: fmtCurrency(interest.principalRemaining),
+        paymentsEnriched: (l.partialPayments || []).map(p => ({ ...p, amountFmt: fmtCurrency(p.amount), paymentDateFmt: fmtDate(p.paymentDate) })).reverse()
+      };
+    };
+    const allLoansEnriched = s.loans.map(enrichLoan);
+
+    // Filtered loans
+    const lf = s.loanFilters;
+    const filteredLoans = allLoansEnriched.filter(l => {
+      if (lf.status !== 'all' && l.status !== lf.status) return false;
+      if (lf.metalType !== 'all' && l.metalType !== lf.metalType) return false;
+      if (lf.itemType !== 'all' && l.itemType !== lf.itemType) return false;
+      if (lf.borrowerId !== 'all' && l.borrowerId !== lf.borrowerId) return false;
+      if (lf.minAmount && l.loanAmount < parseFloat(lf.minAmount)) return false;
+      if (lf.maxAmount && l.loanAmount > parseFloat(lf.maxAmount)) return false;
+      return true;
+    });
+
+    // Borrowers enriched with loan count
+    const enrichedBorrowers = s.borrowers.map(b => {
+      const bLoans = allLoansEnriched.filter(l => l.borrowerId === b._id);
+      const activeLoans = bLoans.filter(l => l.status === 'active' || l.status === 'partial_payment');
+      return {
+        ...b,
+        loanCount: bLoans.length,
+        activeLoanCount: activeLoans.length,
+        totalOutstanding: fmtCurrency(activeLoans.reduce((a, l) => a + l.interest.totalAmountDue, 0)),
+        createdAtFmt: fmtDate(b.createdAt)
+      };
+    });
+    const q = s.borrowerSearch.trim().toLowerCase();
+    const filteredBorrowers = q ? enrichedBorrowers.filter(b => b.name.toLowerCase().includes(q) || (b.phone || '').includes(q)) : enrichedBorrowers;
+
+    const selectedBorrower = s.selectedBorrowerId ? enrichedBorrowers.find(b => b._id === s.selectedBorrowerId) : null;
+    const selectedBorrowerLoans = s.selectedBorrowerId ? allLoansEnriched.filter(l => l.borrowerId === s.selectedBorrowerId) : [];
+    const selectedLoanEnriched = s.selectedLoanId ? allLoansEnriched.find(l => l._id === s.selectedLoanId) : null;
+
+    // Payments (derived from all loans)
+    const allPayments = [];
+    s.loans.forEach(l => {
+      const b = s.borrowers.find(x => x._id === l.borrowerId);
+      (l.partialPayments || []).forEach((p, idx) => {
+        allPayments.push({
+          _id: l._id + '_p' + idx, loanId: l._id, loanNumber: l.loanNumber, borrowerName: b ? b.name : 'Unknown',
+          amount: p.amount, amountFmt: fmtCurrency(p.amount), paymentDate: p.paymentDate, paymentDateFmt: fmtDate(p.paymentDate),
+          paymentType: p.paymentType || 'cash', notes: p.notes || ''
+        });
+      });
+    });
+    allPayments.sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate));
+    const pf = s.paymentFilters;
+    const filteredPayments = allPayments.filter(p => {
+      if (pf.loanId !== 'all' && p.loanId !== pf.loanId) return false;
+      if (pf.dateFrom && new Date(p.paymentDate) < new Date(pf.dateFrom)) return false;
+      if (pf.dateTo && new Date(p.paymentDate) > new Date(pf.dateTo)) return false;
+      return true;
+    });
+    const recentPaymentsEnriched = allPayments.slice(0, 6);
+
+    // Dashboard stats
+    const activeLoans = allLoansEnriched.filter(l => l.status === 'active' || l.status === 'partial_payment');
+    const overdueLoansEnriched = allLoansEnriched.filter(l => l.isOverdue);
+    const totalOutstandingPrincipal = activeLoans.reduce((a, l) => a + l.interest.principalRemaining, 0);
+    const totalInterestAccrued = activeLoans.reduce((a, l) => a + l.interest.totalInterestAccrued, 0);
+    const totalDisbursed = s.loans.reduce((a, l) => a + l.loanAmount, 0);
+    const totalCollected = allPayments.reduce((a, p) => a + p.amount, 0);
+
+    const dashboardStats = {
+      totalLoans: s.loans.length,
+      activeLoans: activeLoans.length,
+      closedLoans: s.loans.filter(l => l.status === 'closed').length,
+      defaultedLoans: s.loans.filter(l => l.status === 'defaulted').length,
+      overdueCount: overdueLoansEnriched.length,
+      totalDisbursedFmt: fmtCurrency(totalDisbursed),
+      totalOutstandingFmt: fmtCurrency(totalOutstandingPrincipal),
+      totalInterestFmt: fmtCurrency(totalInterestAccrued),
+      totalCollectedFmt: fmtCurrency(totalCollected),
+      totalBorrowers: s.borrowers.length
+    };
+
+    const outstandingInterestReport = activeLoans.map(l => l).sort((a, b) => b.interest.totalInterestAccrued - a.interest.totalInterestAccrued);
+    const borrowerSummaryReport = enrichedBorrowers.filter(b => b.loanCount > 0);
+
+    const itemTypeOptions = ['Ring', 'Necklace', 'Bracelet', 'Bangles', 'Chain', 'Earrings', 'Pendant'];
+    const metalTypeOptions = ['Gold', 'Silver', 'Platinum'];
+
+    const pageGroup = { dashboard:'dashboard', borrowers:'borrowers', borrowerDetail:'borrowers', loans:'loans', loanDetail:'loans', payments:'payments', reports:'reports', admin:'admin' }[page] || 'dashboard';
+    const navMapRaw = [
+      { key: 'dashboard', label: 'Dashboard', onClick: this.goDashboard },
+      { key: 'borrowers', label: 'Borrowers', onClick: this.goBorrowers },
+      { key: 'loans', label: 'Loans', onClick: this.goLoans },
+      { key: 'payments', label: 'Payments', onClick: this.goPayments },
+      { key: 'reports', label: 'Reports', onClick: this.goReports },
+      { key: 'admin', label: 'Admin', onClick: this.goAdmin }
+    ];
+    const navMap = navMapRaw.map(n => ({
+      ...n,
+      color: n.key === pageGroup ? '#F3E9D2' : '#C9B89A',
+      underline: n.key === pageGroup ? 'var(--gold)' : 'transparent'
+    }));
+
+    // Non-financial dashboard data
+    const dashboardCounts = {
+      activeLoans: activeLoans.length,
+      totalLoans: s.loans.length,
+      totalBorrowers: s.borrowers.length,
+      overdueCount: overdueLoansEnriched.length,
+      closedLoans: s.loans.filter(l => l.status === 'closed').length,
+      defaultedLoans: s.loans.filter(l => l.status === 'defaulted').length
+    };
+    const dashSearchLoans = allLoansEnriched.map(l => ({ _id: l._id, loanNumber: l.loanNumber, borrowerName: l.borrowerName, itemType: l.itemType, metalType: l.metalType, statusBg: l.statusBg, statusFg: l.statusFg, statusLabel: l.statusLabel }));
+    const dashSearchBorrowers = enrichedBorrowers.map(b => ({ _id: b._id, name: b.name, phone: b.phone, city: b.city }));
+    // Recent activity (non-financial): loan openings + payment events, no amounts
+    const activityEvents = [];
+    s.loans.forEach(l => {
+      const b = s.borrowers.find(x => x._id === l.borrowerId);
+      const name = b ? b.name : 'Unknown';
+      activityEvents.push({ _id: 'a_'+l._id, kind: 'loan', title: 'Loan opened · ' + l.loanNumber, sub: name + ' · ' + l.itemType, date: l.loanDate, dateFmt: fmtDate(l.loanDate), loanId: l._id });
+      (l.partialPayments || []).forEach((p, i) => {
+        activityEvents.push({ _id: 'a_'+l._id+'_'+i, kind: 'payment', title: 'Payment recorded · ' + l.loanNumber, sub: name, date: p.paymentDate, dateFmt: fmtDate(p.paymentDate), loanId: l._id });
+      });
+    });
+    activityEvents.sort((a, b) => new Date(b.date) - new Date(a.date));
+    const recentActivity = activityEvents.slice(0, 7);
+    const overdueBrief = overdueLoansEnriched.map(l => ({ _id: l._id, loanNumber: l.loanNumber, borrowerName: l.borrowerName, dueDateFmt: l.dueDateFmt }));
+
+
+    return {
+      isLoginPage: !s.loggedIn,
+      isAppShell: s.loggedIn,
+      isDashboard: page === 'dashboard',
+      isBorrowersList: page === 'borrowers',
+      isBorrowerDetail: page === 'borrowerDetail',
+      isLoansList: page === 'loans',
+      isLoanDetail: page === 'loanDetail',
+      isPaymentsList: page === 'payments',
+      isReports: page === 'reports',
+      isAdmin: page === 'admin',
+      navItems: navMap,
+
+      loginForm: s.loginForm,
+      onLoginEmailChange: this.onLoginEmailChange,
+      onLoginPasswordChange: this.onLoginPasswordChange,
+      onLogin: this.onLogin,
+      onLogout: this.onLogout,
+      onToggleTheme: this.onToggleTheme,
+      themeKnobLeft: s.theme === 'dark' ? '22px' : '2px',
+
+      dashboardCounts, dashSearchBorrowers, dashSearchLoans, recentActivity, overdueBrief,
+      goReports: this.goReports, goPayments: this.goPayments,
+      recentPaymentsEnriched, overdueLoansEnriched, goLoans: this.goLoans,
+
+      filteredBorrowers, borrowerSearch: s.borrowerSearch, onBorrowerSearchChange: this.onBorrowerSearchChange,
+      openBorrower: this.openBorrower, openNewBorrowerModal: this.openNewBorrowerModal,
+
+      selectedBorrower, selectedBorrowerLoans, goBorrowers: this.goBorrowers,
+      openEditBorrowerModal: this.openEditBorrowerModal, openLoan: this.openLoan,
+      openNewLoanModalForBorrower: this.openNewLoanModalForBorrower,
+
+      filteredLoans, loanFilters: s.loanFilters, onLoanFilterChange: this.onLoanFilterChange,
+      openNewLoanModal: this.openNewLoanModal, itemTypeOptions, metalTypeOptions,
+
+      selectedLoanEnriched, openEditLoanModal: this.openEditLoanModal,
+      openPaymentModalForLoan: this.openPaymentModalForLoan, onChangeLoanStatus: this.onChangeLoanStatus,
+
+      filteredPayments, paymentFilters: s.paymentFilters, onPaymentFilterChange: this.onPaymentFilterChange,
+      loanOptionsForFilter: allLoansEnriched.map(l => ({ _id: l._id, label: l.loanNumber + ' — ' + l.borrowerName })),
+
+      reportSummary: dashboardStats, outstandingInterestReport, borrowerSummaryReport,
+
+      interestConfig: s.interestConfig, adminUsers: s.adminUsers,
+      openTierModal: this.openTierModal, openNewAdminUserModal: this.openNewAdminUserModal, onDeactivateUser: this.onDeactivateUser,
+
+      borrowers: s.borrowers,
+
+      showBorrowerModal: s.showBorrowerModal, borrowerForm: s.borrowerForm, editingBorrowerId: s.editingBorrowerId,
+      onBorrowerFormChange: this.onBorrowerFormChange, onSaveBorrower: this.onSaveBorrower, closeBorrowerModal: this.closeBorrowerModal,
+
+      showLoanModal: s.showLoanModal, loanForm: s.loanForm, editingLoanId: s.editingLoanId,
+      onLoanFormChange: this.onLoanFormChange, onSaveLoan: this.onSaveLoan, closeLoanModal: this.closeLoanModal,
+
+      showPaymentModal: s.showPaymentModal, paymentForm: s.paymentForm,
+      onPaymentFormChange: this.onPaymentFormChange, onSavePayment: this.onSavePayment, closePaymentModal: this.closePaymentModal,
+
+      showTierModal: s.showTierModal, tierDraft: s.tierDraft,
+      onTierDraftChange: this.onTierDraftChange, onAddTier: this.onAddTier, onRemoveTier: this.onRemoveTier,
+      onSaveTiers: this.onSaveTiers, closeTierModal: this.closeTierModal,
+
+      showAdminUserModal: s.showAdminUserModal, adminUserForm: s.adminUserForm,
+      onAdminUserFormChange: this.onAdminUserFormChange, onSaveAdminUser: this.onSaveAdminUser, closeAdminUserModal: this.closeAdminUserModal,
+
+      toast: s.toast
+    };
+  }
+}
+
+</script>
+</body>
+</html>

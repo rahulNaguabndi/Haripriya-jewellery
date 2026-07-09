@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Jost:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</helmet>
+<div style="font-family:'Jost',sans-serif; color:var(--text);">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+    <div>
+      <div style="font-family:'Cormorant Garamond',serif; font-size:26px; font-weight:700;">Loans</div>
+      <div style="font-size:13px; color:var(--text-muted); margin-top:2px;">{{ count }} loans matching filters</div>
+    </div>
+    <button onClick="{{ onNewLoan }}" style="background:var(--ink); color:#fff; border:none; border-radius:8px; padding:10px 18px; font-size:13.5px; font-weight:600; cursor:pointer;" style-hover="background:var(--ink-hover);">+ New loan</button>
+  </div>
+
+  <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px;">
+    <select value="{{ filters.status }}" onChange="{{ onStatusChange }}" style="padding:8px 10px; border-radius:7px; border:1px solid var(--border); font-size:13px;">
+      <option value="all">All statuses</option>
+      <option value="active">Active</option>
+      <option value="partial_payment">Partial payment</option>
+      <option value="closed">Closed</option>
+      <option value="defaulted">Defaulted</option>
+    </select>
+    <select value="{{ filters.metalType }}" onChange="{{ onMetalChange }}" style="padding:8px 10px; border-radius:7px; border:1px solid var(--border); font-size:13px;">
+      <option value="all">All metals</option>
+      <sc-for list="{{ metalTypes }}" as="m" hint-placeholder-count="3">
+        <option value="{{ m }}">{{ m }}</option>
+      </sc-for>
+    </select>
+    <select value="{{ filters.itemType }}" onChange="{{ onItemChange }}" style="padding:8px 10px; border-radius:7px; border:1px solid var(--border); font-size:13px;">
+      <option value="all">All item types</option>
+      <sc-for list="{{ itemTypes }}" as="it" hint-placeholder-count="7">
+        <option value="{{ it }}">{{ it }}</option>
+      </sc-for>
+    </select>
+    <input type="number" value="{{ filters.minAmount }}" onChange="{{ onMinChange }}" placeholder="Min ₹" style="width:110px; padding:8px 10px; border-radius:7px; border:1px solid var(--border); font-size:13px;" />
+    <input type="number" value="{{ filters.maxAmount }}" onChange="{{ onMaxChange }}" placeholder="Max ₹" style="width:110px; padding:8px 10px; border-radius:7px; border:1px solid var(--border); font-size:13px;" />
+    <div onClick="{{ onClearFilters }}" style="align-self:center; font-size:12.5px; color:var(--ink); font-weight:600; cursor:pointer; margin-left:4px;">Clear</div>
+  </div>
+
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden;">
+    <table style="width:100%; border-collapse:collapse; font-size:13px;">
+      <thead>
+        <tr style="background:var(--hover);">
+          <th style="text-align:left; padding:11px 20px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Loan #</th>
+          <th style="text-align:left; padding:11px 12px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Borrower</th>
+          <th style="text-align:left; padding:11px 12px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Item</th>
+          <th style="text-align:right; padding:11px 12px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Amount</th>
+          <th style="text-align:right; padding:11px 12px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Due</th>
+          <th style="text-align:left; padding:11px 20px; font-weight:600; color:var(--text-muted); font-size:12px; text-transform:uppercase;">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <sc-for list="{{ loans }}" as="l" hint-placeholder-count="8">
+          <tr onClick="{{ l.onClick }}" style="border-top:1px solid var(--divider); cursor:pointer;" style-hover="background:var(--hover);">
+            <td style="padding:12px 20px; font-weight:600;">{{ l.loanNumber }}</td>
+            <td style="padding:12px 12px;">{{ l.borrowerName }}</td>
+            <td style="padding:12px 12px; color:var(--text-3);">{{ l.itemType }} · {{ l.metalType }} · {{ l.weight }}g</td>
+            <td style="padding:12px 12px; text-align:right; font-weight:600;">{{ l.loanAmountFmt }}</td>
+            <td style="padding:12px 12px; text-align:right; color:{{ l.dueColor }};">{{ l.dueDateFmt }}</td>
+            <td style="padding:12px 20px;"><span style="background:{{ l.statusBg }}; color:{{ l.statusFg }}; padding:3px 10px; border-radius:20px; font-size:11.5px; font-weight:600; text-transform:capitalize;">{{ l.statusLabel }}</span></td>
+          </tr>
+        </sc-for>
+      </tbody>
+    </table>
+    <sc-if value="{{ isEmpty }}">
+      <div style="padding:32px; text-align:center; color:var(--text-muted); font-size:13.5px;">No loans match these filters.</div>
+    </sc-if>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1100, &quot;height&quot;: 700}}">
+class Component extends DCLogic {
+  renderVals() {
+    const loans = this.props.loans || [];
+    const onOpenLoan = this.props.onOpenLoan || (() => {});
+    const onFilterChange = this.props.onFilterChange || (() => {});
+    const filters = this.props.filters || {};
+    return {
+      loans: loans.map(l => ({ ...l, onClick: () => onOpenLoan(l._id), dueColor: l.isOverdue ? '#b3413a' : 'var(--text-muted)' })),
+      count: loans.length,
+      isEmpty: loans.length === 0,
+      filters,
+      metalTypes: this.props.metalTypes || [],
+      itemTypes: this.props.itemTypes || [],
+      onStatusChange: (e) => onFilterChange('status', e.target.value),
+      onMetalChange: (e) => onFilterChange('metalType', e.target.value),
+      onItemChange: (e) => onFilterChange('itemType', e.target.value),
+      onMinChange: (e) => onFilterChange('minAmount', e.target.value),
+      onMaxChange: (e) => onFilterChange('maxAmount', e.target.value),
+      onClearFilters: () => {
+        onFilterChange('status', 'all'); onFilterChange('metalType', 'all'); onFilterChange('itemType', 'all');
+        onFilterChange('minAmount', ''); onFilterChange('maxAmount', ''); onFilterChange('borrowerId', 'all');
+      },
+      onNewLoan: this.props.onNewLoan
+    };
+  }
+}
+
+</script>
+</body>
+</html>
