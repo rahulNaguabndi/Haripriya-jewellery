@@ -44,7 +44,7 @@ export default function Dashboard() {
     <div>
       <div className="font-serif" style={{ fontSize: 26, fontWeight: 600, marginBottom: 20 }}>Dashboard</div>
 
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 24 }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <StatCard label="Total Loans" value={tileValue(loanCounts, (d) => d.totalLoans)} />
         <StatCard label="Active Loans" value={tileValue(loanCounts, (d) => d.activeLoans)} />
         <StatCard label="Total Borrowers" value={tileValue(borrowerCount, (d) => d.totalBorrowers)} />

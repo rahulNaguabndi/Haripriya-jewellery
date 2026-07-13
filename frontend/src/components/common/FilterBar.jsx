@@ -1,8 +1,8 @@
 export default function FilterBar({ fields, values, onChange, onReset }) {
   return (
-    <div className="card" style={{ padding: 16, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 16 }}>
+    <div className="card flex flex-wrap items-end gap-3.5 mb-4 p-4">
       {fields.map((field) => (
-        <div key={field.name} style={{ minWidth: field.width || 160 }}>
+        <div key={field.name} className="w-full sm:w-auto" style={{ minWidth: field.width || 160 }}>
           <label style={{ marginBottom: 4 }}>{field.label}</label>
           {field.type === 'select' ? (
             <select value={values[field.name] || ''} onChange={(e) => onChange(field.name, e.target.value)}>

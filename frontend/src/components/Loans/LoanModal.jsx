@@ -17,6 +17,7 @@ const empty = {
   loanDate: new Date().toISOString().slice(0, 10),
   dueDate: '',
   interestRate: '',
+  cardGiven: false,
 };
 
 export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
@@ -34,6 +35,7 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
           loanDate: loan.loan_date,
           dueDate: loan.due_date ?? '',
           interestRate: loan.interest_rate,
+          cardGiven: !!loan.card_given,
         }
       : { ...empty, borrowerId: borrowerId || '' }
   );
@@ -217,6 +219,21 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
           <div className="field" style={{ flex: 1 }}>
             <label>Due Date</label>
             <input type="date" value={form.dueDate} onChange={(e) => set('dueDate', e.target.value)} />
+          </div>
+        </div>
+
+        <div className="field">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={form.cardGiven}
+              onChange={(e) => set('cardGiven', e.target.checked)}
+              style={{ width: 'auto' }}
+            />
+            Card Given
+          </label>
+          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
+            Only check this if a physical loan card was handed to the borrower. It must be marked returned before the loan can be closed.
           </div>
         </div>
 

@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 * { box-sizing: border-box; }
 
 html {
@@ -45,7 +47,6 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: 'Jost', sans-serif;
-  transition: background 0.2s ease;
 }
 
 h1, h2, h3, h4, .font-serif {
@@ -81,65 +82,80 @@ label {
   margin-bottom: 6px;
 }
 
-.field { margin-bottom: 14px; }
+@layer components {
+  /* .field/.btn*/.card/.table-wrap/.modal-* are used identically (no
+     per-instance customization) across every page and modal in the app, so
+     they live here as Tailwind component classes rather than being
+     duplicated as utility strings at ~20 call sites. */
+  .field { margin-bottom: 14px; }
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 16px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease;
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .btn-primary { background: var(--ink); color: #fff; }
+  .btn-primary:hover { background: var(--ink-hover); }
+  .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: var(--hover); }
+  .btn-danger { background: var(--danger-soft); color: var(--danger); }
+  .btn-danger:hover { filter: brightness(0.97); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+  }
+
+  .table-wrap { overflow-x: auto; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(20, 17, 13, 0.45);
+    display: flex; align-items: center; justify-content: center; z-index: 100;
+    padding: 16px;
+  }
+  .modal-panel {
+    background: var(--surface); border-radius: 14px; border: 1px solid var(--border);
+    width: 440px; max-width: 92vw; max-height: 88vh; overflow-y: auto; padding: 28px;
+  }
+  @media (max-width: 480px) {
+    .modal-panel { padding: 16px; }
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  .badge-active { background: var(--success-soft); color: var(--success); }
+  .badge-partial_payment { background: var(--warning-soft); color: var(--warning); }
+  .badge-closed { background: var(--hover); color: var(--text-muted); }
+  .badge-defaulted { background: var(--danger-soft); color: var(--danger); }
+
+  .badge-card-none { background: var(--hover); color: var(--text-muted); }
+  .badge-card-pending { background: var(--warning-soft); color: var(--warning); }
+  .badge-card-returned { background: var(--success-soft); color: var(--success); }
 }
-
-.btn-primary { background: var(--ink); color: #fff; }
-.btn-primary:hover { background: var(--ink-hover); }
-.btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
-.btn-secondary:hover { background: var(--hover); }
-.btn-danger { background: var(--danger-soft); color: var(--danger); }
-.btn-danger:hover { filter: brightness(0.97); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-}
-
-.badge {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-
-.badge-active { background: var(--success-soft); color: var(--success); }
-.badge-partial_payment { background: var(--warning-soft); color: var(--warning); }
-.badge-closed { background: var(--hover); color: var(--text-muted); }
-.badge-defaulted { background: var(--danger-soft); color: var(--danger); }
 
 ::selection { background: var(--gold); color: var(--ink); }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: #d8d3c7; border-radius: 4px; }
 
-.table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); padding: 10px 14px; border-bottom: 1px solid var(--border); }
 td { padding: 12px 14px; border-bottom: 1px solid var(--divider); }
 tr:hover td { background: var(--hover); }
-
-.modal-overlay {
-  position: fixed; inset: 0; background: rgba(20, 17, 13, 0.45);
-  display: flex; align-items: center; justify-content: center; z-index: 100;
-}
-.modal-panel {
-  background: var(--surface); border-radius: 14px; border: 1px solid var(--border);
-  width: 440px; max-width: 92vw; max-height: 88vh; overflow-y: auto; padding: 28px;
-}

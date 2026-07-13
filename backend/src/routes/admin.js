@@ -8,6 +8,7 @@ import {
   createAdminUser,
   deactivateAdminUser,
   updateMyTheme,
+  updateBrandTheme,
 } from '../controllers/adminController.js';
 
 const router = Router();
@@ -18,6 +19,7 @@ router.put('/config/interest', requireRole('super_admin', 'admin'), updateIntere
 router.get('/config/all', getAllConfigs);
 
 router.patch('/me/theme', updateMyTheme);
+router.put('/branding', requireRole('super_admin', 'admin'), updateBrandTheme);
 
 router.get('/users', listAdminUsers);
 router.post('/users', requireRole('super_admin'), createAdminUser);

@@ -45,6 +45,7 @@ export async function createLoan(req, res, next) {
       loanDate,
       dueDate,
       interestRate,
+      cardGiven,
     } = req.body;
 
     const { data: borrower, error: borrowerError } = await supabase
@@ -73,6 +74,7 @@ export async function createLoan(req, res, next) {
         loan_date: loanDate,
         due_date: dueDate,
         interest_rate: appliedRate,
+        card_given: !!cardGiven,
         created_by: req.user.id,
       })
       .select()
@@ -150,22 +152,28 @@ export async function updateLoan(req, res, next) {
       loanDate,
       dueDate,
       interestRate,
+      cardGiven,
+      cardReturned,
     } = req.body;
+
+    const update = {
+      item_type: itemType,
+      metal_type: metalType,
+      weight,
+      purity,
+      description,
+      loan_amount: loanAmount,
+      loan_date: loanDate,
+      due_date: dueDate,
+      interest_rate: interestRate,
+      updated_at: new Date().toISOString(),
+    };
+    if (cardGiven !== undefined) update.card_given = !!cardGiven;
+    if (cardReturned !== undefined) update.card_returned = !!cardReturned;
 
     const { data, error } = await supabase
       .from('loans')
-      .update({
-        item_type: itemType,
-        metal_type: metalType,
-        weight,
-        purity,
-        description,
-        loan_amount: loanAmount,
-        loan_date: loanDate,
-        due_date: dueDate,
-        interest_rate: interestRate,
-        updated_at: new Date().toISOString(),
-      })
+      .update(update)
       .eq('id', req.params.id)
       .select()
       .maybeSingle();
@@ -186,13 +194,27 @@ export async function updateLoanStatus(req, res, next) {
       throw new ApiError(400, `status must be one of: ${validStatuses.join(', ')}`);
     }
 
-    const { closureDate, interestCollected } = req.body;
+    const { closureDate, interestCollected, cardReturned } = req.body;
     const update = { status: req.body.status, updated_at: new Date().toISOString() };
 
     if (req.body.status === 'closed') {
       requireFields(req.body, ['closureDate', 'interestCollected']);
       update.closure_date = closureDate;
       update.interest_collected = interestCollected;
+
+      const { data: existing, error: existingError } = await supabase
+        .from('loans')
+        .select('card_given, card_returned')
+        .eq('id', req.params.id)
+        .maybeSingle();
+      if (existingError) throw new ApiError(400, existingError.message);
+      if (!existing) throw new ApiError(404, 'Loan not found');
+
+      const willHaveCardReturned = cardReturned !== undefined ? !!cardReturned : existing.card_returned;
+      if (existing.card_given && !willHaveCardReturned) {
+        throw new ApiError(400, 'Card must be marked returned before closing this loan.');
+      }
+      if (cardReturned !== undefined) update.card_returned = !!cardReturned;
     }
 
     const { data, error } = await supabase

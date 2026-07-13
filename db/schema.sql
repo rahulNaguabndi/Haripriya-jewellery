@@ -76,6 +76,13 @@ alter table public.loans
 alter table public.loans
   add column if not exists interest_collected numeric;
 
+-- Card given/returned tracking: staff issue a physical card with the loan
+-- number, which must be collected back before the loan is closed.
+alter table public.loans
+  add column if not exists card_given boolean not null default false;
+alter table public.loans
+  add column if not exists card_returned boolean not null default false;
+
 create index if not exists idx_loans_borrower_id on public.loans (borrower_id);
 create index if not exists idx_loans_status on public.loans (status);
 create index if not exists idx_loans_metal_type on public.loans (metal_type);
@@ -175,6 +182,45 @@ alter table public.admin_users
   add column if not exists theme_preference jsonb not null default '{"mode":"light","accent":"gold"}'::jsonb;
 
 -- ---------------------------------------------------------------------
+-- Brand theme (whole-app color palette, editable by super_admin/admin)
+-- Unlike admin_users.theme_preference (a personal light/dark + accent
+-- pick), this is a single, deployment-wide palette so a jewelry/lending
+-- business can rebrand the whole app's colors from Admin Settings without
+-- a code change. Seeded with this app's current default palette (copied
+-- verbatim from src/theme.css) so a fresh deployment looks unchanged.
+-- ---------------------------------------------------------------------
+create table if not exists public.brand_theme (
+  id uuid primary key default gen_random_uuid(),
+  is_active boolean not null default true,
+  colors jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id)
+);
+
+insert into public.brand_theme (is_active, colors)
+select true,
+  '{
+     "light": {
+       "bg": "#F7F1E6", "surface": "#FFFCF5", "border": "#E6D8BC",
+       "divider": "#EFE3C9", "hover": "#F3EAD6", "text": "#20160F",
+       "textMuted": "#8A7B5E", "text3": "#5A4630", "ink": "#16130F",
+       "inkHover": "#2a2119", "danger": "#b3413a", "dangerSoft": "#fbeceb",
+       "success": "#3f7d4f", "successSoft": "#eaf5ec", "warning": "#8a6512",
+       "warningSoft": "#fff3d6", "gold": "#CBA45C", "goldDeep": "#B78C3C"
+     },
+     "dark": {
+       "bg": "#14110D", "surface": "#1E1A13", "border": "#362E22",
+       "divider": "#2A231A", "hover": "#29221A", "text": "#F3E9D2",
+       "textMuted": "#A2916F", "text3": "#C9B89A", "ink": "#0F0C08",
+       "inkHover": "#1c170f", "danger": "#b3413a", "dangerSoft": "#2a1512",
+       "success": "#3f7d4f", "successSoft": "#12261a", "warning": "#e0b563",
+       "warningSoft": "#332a12", "gold": "#CBA45C", "goldDeep": "#D2B36A"
+     }
+   }'::jsonb
+where not exists (select 1 from public.brand_theme where is_active = true);
+
+-- ---------------------------------------------------------------------
 -- Row Level Security
 -- The Express backend talks to Supabase using the service_role key, which
 -- bypasses RLS entirely. RLS is enabled here as defense-in-depth in case
@@ -185,6 +231,7 @@ alter table public.loans enable row level security;
 alter table public.payments enable row level security;
 alter table public.interest_config enable row level security;
 alter table public.admin_users enable row level security;
+alter table public.brand_theme enable row level security;
 
 drop policy if exists "authenticated read borrowers" on public.borrowers;
 create policy "authenticated read borrowers" on public.borrowers
@@ -205,6 +252,12 @@ create policy "authenticated read interest_config" on public.interest_config
 drop policy if exists "authenticated read admin_users" on public.admin_users;
 create policy "authenticated read admin_users" on public.admin_users
   for select using (auth.role() = 'authenticated');
+
+-- brand_theme is readable by anyone (including anon/pre-login), since the
+-- login page itself needs to render with the deployment's branding.
+drop policy if exists "public read brand_theme" on public.brand_theme;
+create policy "public read brand_theme" on public.brand_theme
+  for select using (true);
 
 -- No insert/update/delete policies are defined for the anon/authenticated
 -- roles: all writes go through the backend using the service_role key.

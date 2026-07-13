@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import ThemeToggle from './ThemeToggle.jsx';
@@ -11,11 +12,23 @@ const navItems = [
   { to: '/admin/settings', label: 'Admin Settings' },
 ];
 
+const navLinkStyle = ({ isActive }) => ({
+  padding: '8px 14px',
+  borderRadius: 7,
+  fontSize: 13.5,
+  fontWeight: 500,
+  textDecoration: 'none',
+  color: isActive ? '#F3E9D2' : '#C9B89A',
+  background: isActive ? 'rgba(203,164,92,0.15)' : 'transparent',
+});
+
 export default function AppShell({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [navOpen, setNavOpen] = useState(false);
 
   async function handleLogout() {
+    setNavOpen(false);
     await logout();
     navigate('/login');
   }
@@ -29,12 +42,13 @@ export default function AppShell({ children }) {
           display: 'flex',
           alignItems: 'center',
           gap: 28,
-          padding: '0 32px',
+          padding: '0 20px',
           height: 62,
           position: 'sticky',
           top: 0,
           zIndex: 50,
         }}
+        className="md:px-8"
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
           <div
@@ -56,27 +70,17 @@ export default function AppShell({ children }) {
           </div>
         </div>
 
-        <nav style={{ display: 'flex', gap: 4, flex: 1 }}>
+        <nav className="hidden md:flex" style={{ gap: 4, flex: 1 }}>
           {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              style={({ isActive }) => ({
-                padding: '8px 14px',
-                borderRadius: 7,
-                fontSize: 13.5,
-                fontWeight: 500,
-                textDecoration: 'none',
-                color: isActive ? '#F3E9D2' : '#C9B89A',
-                background: isActive ? 'rgba(203,164,92,0.15)' : 'transparent',
-              })}
-            >
+            <NavLink key={item.to} to={item.to} style={navLinkStyle}>
               {item.label}
             </NavLink>
           ))}
         </nav>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div className="hidden md:flex" style={{ flex: 1 }} />
+
+        <div className="hidden md:flex" style={{ alignItems: 'center', gap: 14 }}>
           <div style={{ fontSize: 12.5, color: '#C9B89A' }}>{user?.email}</div>
           <ThemeToggle style={{ border: '1px solid #4a4030' }} />
           <button
@@ -87,9 +91,47 @@ export default function AppShell({ children }) {
             Sign out
           </button>
         </div>
+
+        <div className="flex md:hidden items-center gap-2 ml-auto">
+          <ThemeToggle style={{ border: '1px solid #4a4030' }} />
+          <button
+            type="button"
+            onClick={() => setNavOpen((v) => !v)}
+            aria-label={navOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={navOpen}
+            className="btn"
+            style={{ background: 'transparent', color: '#C9B89A', border: '1px solid #4a4030', width: 34, height: 34, padding: 0, fontSize: 16 }}
+          >
+            {navOpen ? '✕' : '☰'}
+          </button>
+        </div>
       </div>
 
-      <div style={{ flex: 1, padding: '28px 32px', maxWidth: 1280, width: '100%', margin: '0 auto' }}>{children}</div>
+      {navOpen && (
+        <div
+          className="md:hidden flex flex-col"
+          style={{ background: 'var(--ink)', borderTop: '1px solid #362E22', position: 'sticky', top: 62, zIndex: 49, padding: '10px 16px 16px' }}
+        >
+          {navItems.map((item) => (
+            <NavLink key={item.to} to={item.to} onClick={() => setNavOpen(false)} style={navLinkStyle}>
+              {item.label}
+            </NavLink>
+          ))}
+          <div style={{ borderTop: '1px solid #362E22', margin: '10px 0' }} />
+          <div style={{ fontSize: 12.5, color: '#C9B89A', padding: '0 14px 10px' }}>{user?.email}</div>
+          <button
+            onClick={handleLogout}
+            className="btn"
+            style={{ background: 'transparent', color: '#C9B89A', border: '1px solid #4a4030', padding: '9px 12px', margin: '0 14px' }}
+          >
+            Sign out
+          </button>
+        </div>
+      )}
+
+      <div className="flex-1 px-4 py-6 md:px-8 md:py-7" style={{ maxWidth: 1280, width: '100%', margin: '0 auto' }}>
+        {children}
+      </div>
     </div>
   );
 }

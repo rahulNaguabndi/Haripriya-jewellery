@@ -3,6 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../services/api.js';
 import DataTable from '../components/common/DataTable.jsx';
 import StatusBadge from '../components/common/StatusBadge.jsx';
+import CardStatusBadge from '../components/common/CardStatusBadge.jsx';
 import InterestSummaryCard from '../components/common/InterestSummaryCard.jsx';
 import LoanModal from '../components/Loans/LoanModal.jsx';
 import PaymentModal from '../components/Payments/PaymentModal.jsx';
@@ -48,10 +49,19 @@ export default function LoanDetail() {
     }
   }
 
-  async function handleConfirmClosure(closureDate, interestCollected) {
+  async function handleConfirmClosure(closureDate, interestCollected, cardReturned) {
     try {
-      await api.patch(`/loans/${id}/status`, { status: 'closed', closureDate, interestCollected });
+      await api.patch(`/loans/${id}/status`, { status: 'closed', closureDate, interestCollected, cardReturned });
       setShowClosure(false);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleMarkCardReturned() {
+    try {
+      await api.put(`/loans/${id}`, { cardReturned: true });
       load();
     } catch (err) {
       setError(err.message);
@@ -118,6 +128,17 @@ export default function LoanDetail() {
             <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Status</div>
             <StatusBadge status={loan.status} />
           </div>
+          <div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Card</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <CardStatusBadge cardGiven={loan.card_given} cardReturned={loan.card_returned} />
+              {loan.card_given && !loan.card_returned && (
+                <button className="btn btn-secondary" style={{ padding: '2px 10px', fontSize: 12 }} onClick={handleMarkCardReturned}>
+                  Mark Returned
+                </button>
+              )}
+            </div>
+          </div>
           {loan.status === 'closed' && (
             <>
               <div>
@@ -167,6 +188,8 @@ export default function LoanDetail() {
       {showClosure && (
         <LoanClosureModal
           suggestedInterest={loan.interest?.totalInterestAccrued}
+          cardGiven={loan.card_given}
+          cardReturned={loan.card_returned}
           onConfirm={handleConfirmClosure}
           onCancel={() => setShowClosure(false)}
         />

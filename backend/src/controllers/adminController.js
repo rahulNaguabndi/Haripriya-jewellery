@@ -155,6 +155,72 @@ export async function updateMyTheme(req, res, next) {
   }
 }
 
+export async function getBrandTheme(req, res, next) {
+  try {
+    const { data, error } = await supabase
+      .from('brand_theme')
+      .select('*')
+      .eq('is_active', true)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw new ApiError(400, error.message);
+    if (!data) throw new ApiError(404, 'No active brand theme found');
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateBrandTheme(req, res, next) {
+  try {
+    requireFields(req.body, ['colors']);
+    const { colors } = req.body;
+
+    if (
+      typeof colors !== 'object' ||
+      colors === null ||
+      typeof colors.light !== 'object' ||
+      typeof colors.dark !== 'object'
+    ) {
+      throw new ApiError(400, 'colors must be an object with { light, dark } palettes');
+    }
+
+    const { data: current } = await supabase
+      .from('brand_theme')
+      .select('*')
+      .eq('is_active', true)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    let result;
+    if (current) {
+      const { data, error } = await supabase
+        .from('brand_theme')
+        .update({ colors, updated_at: new Date().toISOString(), updated_by: req.user.id })
+        .eq('id', current.id)
+        .select()
+        .single();
+      if (error) throw new ApiError(400, error.message);
+      result = data;
+    } else {
+      const { data, error } = await supabase
+        .from('brand_theme')
+        .insert({ is_active: true, colors, updated_by: req.user.id })
+        .select()
+        .single();
+      if (error) throw new ApiError(400, error.message);
+      result = data;
+    }
+
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function deactivateAdminUser(req, res, next) {
   try {
     const { data, error } = await supabase

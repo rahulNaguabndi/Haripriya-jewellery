@@ -4,8 +4,32 @@ import AdminUserModal from '../components/Admin/AdminUserModal.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { ACCENT_PRESETS } from '../theme/accents.js';
 
+// Editable in the Branding UI below. gold/goldDeep are deliberately excluded
+// — those are covered by the "Accent color" picker above, and a personal
+// accent choice always overrides a brand gold/goldDeep at runtime (see
+// ThemeContext.jsx), so exposing them here would be edits that never
+// visibly apply.
+const BRAND_TOKENS = [
+  { key: 'bg', label: 'Background' },
+  { key: 'surface', label: 'Surface' },
+  { key: 'border', label: 'Border' },
+  { key: 'divider', label: 'Divider' },
+  { key: 'hover', label: 'Hover' },
+  { key: 'text', label: 'Text' },
+  { key: 'textMuted', label: 'Text (muted)' },
+  { key: 'text3', label: 'Text (secondary)' },
+  { key: 'ink', label: 'Ink (nav/buttons)' },
+  { key: 'inkHover', label: 'Ink hover' },
+  { key: 'danger', label: 'Danger' },
+  { key: 'dangerSoft', label: 'Danger (soft)' },
+  { key: 'success', label: 'Success' },
+  { key: 'successSoft', label: 'Success (soft)' },
+  { key: 'warning', label: 'Warning' },
+  { key: 'warningSoft', label: 'Warning (soft)' },
+];
+
 export default function AdminSettings() {
-  const { theme, accent, toggleTheme, setAccent } = useTheme();
+  const { theme, accent, toggleTheme, setAccent, brandColors, applyBrandColors } = useTheme();
   const [config, setConfig] = useState(null);
   const [tiers, setTiers] = useState([]);
   const [adminUsers, setAdminUsers] = useState([]);
@@ -13,6 +37,29 @@ export default function AdminSettings() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [draftColors, setDraftColors] = useState(null);
+  const [savingBranding, setSavingBranding] = useState(false);
+
+  useEffect(() => {
+    if (brandColors && !draftColors) setDraftColors(brandColors);
+  }, [brandColors, draftColors]);
+
+  function updateBrandColor(mode, key, value) {
+    setDraftColors((c) => ({ ...c, [mode]: { ...c[mode], [key]: value } }));
+  }
+
+  async function saveBranding() {
+    setSavingBranding(true);
+    setError('');
+    try {
+      const res = await api.put('/admin/branding', { colors: draftColors });
+      applyBrandColors(res.data.colors);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingBranding(false);
+    }
+  }
 
   async function loadAll() {
     try {
@@ -143,6 +190,48 @@ export default function AdminSettings() {
             Applies immediately and is saved to your profile — it'll follow you next time you sign in.
           </div>
         </div>
+      </div>
+
+      <div className="card" style={{ padding: 22, marginBottom: 24 }}>
+        <div className="font-serif" style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>Branding</div>
+        <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 16 }}>
+          This deployment's own color palette — unlike the Accent picker above (a personal preference), this
+          applies for every user of this app and is meant to be set once per business.
+        </div>
+        {!draftColors && <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>Loading…</div>}
+        {draftColors && !canEditConfig && (
+          <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Only admin / super admin roles can edit branding.</div>
+        )}
+        {draftColors && canEditConfig && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {['light', 'dark'].map((mode) => (
+                <div key={mode}>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, textTransform: 'capitalize' }}>{mode} mode</div>
+                  {BRAND_TOKENS.map(({ key, label }) => (
+                    <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+                      <label style={{ marginBottom: 0, fontWeight: 400, fontSize: 13 }}>{label}</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                          {draftColors[mode][key]}
+                        </span>
+                        <input
+                          type="color"
+                          value={draftColors[mode][key]}
+                          onChange={(e) => updateBrandColor(mode, key, e.target.value)}
+                          style={{ width: 34, height: 34, padding: 2, cursor: 'pointer' }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <button className="btn btn-primary" onClick={saveBranding} disabled={savingBranding} style={{ marginTop: 16 }}>
+              {savingBranding ? 'Saving…' : 'Save Branding'}
+            </button>
+          </>
+        )}
       </div>
 
       <div className="card" style={{ padding: 22, marginBottom: 24 }}>

@@ -5,6 +5,7 @@ import DataTable from '../components/common/DataTable.jsx';
 import FilterBar from '../components/common/FilterBar.jsx';
 import Pagination from '../components/common/Pagination.jsx';
 import StatusBadge from '../components/common/StatusBadge.jsx';
+import CardStatusBadge from '../components/common/CardStatusBadge.jsx';
 import LoanModal from '../components/Loans/LoanModal.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
 
@@ -71,6 +72,7 @@ export default function LoansList() {
     { key: 'loan_amount', label: 'Amount', render: (r) => formatCurrency(r.loan_amount) },
     { key: 'loan_date', label: 'Loan Date', render: (r) => formatDate(r.loan_date) },
     { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} /> },
+    { key: 'card', label: 'Card', render: (r) => <CardStatusBadge cardGiven={r.card_given} cardReturned={r.card_returned} /> },
   ];
 
   return (
