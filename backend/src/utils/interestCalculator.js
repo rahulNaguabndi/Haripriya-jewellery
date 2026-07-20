@@ -43,6 +43,12 @@ function calendarMonthsAndDays(start, end) {
   return { months, days };
 }
 
+// Full calendar months elapsed between two dates - exported for the notice
+// scheduler, which fires at whole-month thresholds (13/19/26/36 months).
+export function fullCalendarMonthsElapsed(start, end) {
+  return calendarMonthsAndDays(new Date(start), new Date(end)).months;
+}
+
 // Computes interest accrued by `amount` between `start` and `end`, per the
 // business's real calculation method:
 //  - If the whole span is under one calendar month, charge a single flat

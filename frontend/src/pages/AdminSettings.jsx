@@ -32,6 +32,10 @@ export default function AdminSettings() {
   const { theme, accent, toggleTheme, setAccent, brandColors, applyBrandColors } = useTheme();
   const [config, setConfig] = useState(null);
   const [tiers, setTiers] = useState([]);
+  const [noticeConfig, setNoticeConfig] = useState(null);
+  const [thresholdMonths, setThresholdMonths] = useState([]);
+  const [costAmount, setCostAmount] = useState(0);
+  const [savingNotices, setSavingNotices] = useState(false);
   const [adminUsers, setAdminUsers] = useState([]);
   const [role, setRole] = useState(null);
   const [error, setError] = useState('');
@@ -63,14 +67,18 @@ export default function AdminSettings() {
 
   async function loadAll() {
     try {
-      const [meRes, configRes, usersRes] = await Promise.all([
+      const [meRes, configRes, noticeRes, usersRes] = await Promise.all([
         api.get('/auth/me'),
         api.get('/admin/config/interest'),
+        api.get('/admin/config/notices'),
         api.get('/admin/users'),
       ]);
       setRole(meRes.data.adminProfile?.role || null);
       setConfig(configRes.data);
       setTiers(configRes.data.tiers || []);
+      setNoticeConfig(noticeRes.data);
+      setThresholdMonths(noticeRes.data.threshold_months || []);
+      setCostAmount(noticeRes.data.cost_amount ?? 0);
       setAdminUsers(usersRes.data.data);
     } catch (err) {
       setError(err.message);
@@ -112,6 +120,34 @@ export default function AdminSettings() {
       setError(err.message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  function updateThreshold(index, value) {
+    setThresholdMonths((m) => m.map((v, i) => (i === index ? value : v)));
+  }
+
+  function addThreshold() {
+    setThresholdMonths((m) => [...m, 0]);
+  }
+
+  function removeThreshold(index) {
+    setThresholdMonths((m) => m.filter((_, i) => i !== index));
+  }
+
+  async function saveNoticeConfig() {
+    setSavingNotices(true);
+    setError('');
+    try {
+      await api.put('/admin/config/notices', {
+        thresholdMonths: thresholdMonths.map(Number),
+        costAmount: Number(costAmount),
+      });
+      loadAll();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingNotices(false);
     }
   }
 
@@ -278,6 +314,51 @@ export default function AdminSettings() {
         {!canEditConfig && (
           <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 8 }}>
             Only admin / super admin roles can edit interest tiers.
+          </div>
+        )}
+      </div>
+
+      <div className="card" style={{ padding: 22, marginBottom: 24 }}>
+        <div className="font-serif" style={{ fontSize: 18, fontWeight: 600, marginBottom: 6 }}>Overdue Notices</div>
+        <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 14 }}>
+          Month thresholds (since loan date) at which a registered-post notice is due, plus the flat,
+          non-compounding cost added to the amount owed each time one is sent.
+        </div>
+
+        <div className="field" style={{ maxWidth: 200, marginBottom: 16 }}>
+          <label>Notice cost (₹)</label>
+          <input type="number" value={costAmount} disabled={!canEditConfig} onChange={(e) => setCostAmount(e.target.value)} />
+        </div>
+
+        <label>Thresholds (months)</label>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+          {thresholdMonths.map((m, i) => (
+            <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input
+                type="number"
+                value={m}
+                disabled={!canEditConfig}
+                onChange={(e) => updateThreshold(i, e.target.value)}
+                style={{ width: 80 }}
+              />
+              {canEditConfig && (
+                <button className="btn btn-danger" onClick={() => removeThreshold(i)}>×</button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {canEditConfig && (
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn btn-secondary" onClick={addThreshold}>+ Add Threshold</button>
+            <button className="btn btn-primary" onClick={saveNoticeConfig} disabled={savingNotices}>
+              {savingNotices ? 'Saving…' : 'Save Notice Settings'}
+            </button>
+          </div>
+        )}
+        {!canEditConfig && (
+          <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 8 }}>
+            Only admin / super admin roles can edit notice settings.
           </div>
         )}
       </div>

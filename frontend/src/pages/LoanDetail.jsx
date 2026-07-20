@@ -16,6 +16,8 @@ export default function LoanDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [loan, setLoan] = useState(null);
+  const [notices, setNotices] = useState([]);
+  const [noticesTotalCost, setNoticesTotalCost] = useState(0);
   const [error, setError] = useState('');
   const [showEdit, setShowEdit] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
@@ -23,8 +25,13 @@ export default function LoanDetail() {
 
   async function load() {
     try {
-      const res = await api.get(`/loans/${id}`);
-      setLoan(res.data);
+      const [loanRes, noticesRes] = await Promise.all([
+        api.get(`/loans/${id}`),
+        api.get(`/loans/${id}/notices`),
+      ]);
+      setLoan(loanRes.data);
+      setNotices(noticesRes.data.data || []);
+      setNoticesTotalCost(noticesRes.data.totalCost || 0);
     } catch (err) {
       setError(err.message);
     }
@@ -156,6 +163,31 @@ export default function LoanDetail() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
         <InterestSummaryCard interest={loan.interest} />
+        <div className="card" style={{ padding: 20 }}>
+          <div className="font-serif" style={{ fontSize: 17, fontWeight: 600, marginBottom: 14 }}>Overdue Notices</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Total notice cost charged</div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>{formatCurrency(noticesTotalCost)}</div>
+          </div>
+          {notices.length === 0 && (
+            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No notices sent for this loan.</div>
+          )}
+          {notices.map((n) => (
+            <div
+              key={n.id}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: 13,
+                padding: '6px 0',
+                borderBottom: '1px solid var(--divider)',
+              }}
+            >
+              <span>{n.threshold_month} mo notice — {formatDate(n.sent_date)}</span>
+              <span>{formatCurrency(n.cost_charged)}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>

@@ -161,6 +161,43 @@ select 'default', true,
 where not exists (select 1 from public.interest_config where config_name = 'default');
 
 -- ---------------------------------------------------------------------
+-- Overdue notice configuration (admin settings)
+-- Registered-post notices are sent at configurable month-thresholds after
+-- the loan date (default 13/19/26/36 months); each notice adds a flat,
+-- non-compounding cost to the amount owed.
+-- ---------------------------------------------------------------------
+create table if not exists public.notice_config (
+  id uuid primary key default gen_random_uuid(),
+  config_name text not null default 'default',
+  is_active boolean not null default true,
+  threshold_months jsonb not null default '[13, 19, 26, 36]'::jsonb,
+  cost_amount numeric not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id)
+);
+
+insert into public.notice_config (config_name, is_active, threshold_months, cost_amount)
+select 'default', true, '[13, 19, 26, 36]'::jsonb, 0
+where not exists (select 1 from public.notice_config where config_name = 'default');
+
+-- One row per notice actually sent for a loan. cost_charged snapshots
+-- notice_config.cost_amount at send time, so later cost changes don't
+-- retroactively alter historical notices.
+create table if not exists public.loan_notices (
+  id uuid primary key default gen_random_uuid(),
+  loan_id uuid not null references public.loans(id) on delete cascade,
+  threshold_month integer not null,
+  sent_date date not null default current_date,
+  cost_charged numeric not null default 0,
+  sent_by uuid references auth.users(id),
+  created_at timestamptz not null default now(),
+  unique (loan_id, threshold_month)
+);
+
+create index if not exists idx_loan_notices_loan_id on public.loan_notices (loan_id);
+
+-- ---------------------------------------------------------------------
 -- Admin users (mirrors Supabase auth users with app-level role info)
 -- ---------------------------------------------------------------------
 create table if not exists public.admin_users (
@@ -232,6 +269,8 @@ alter table public.payments enable row level security;
 alter table public.interest_config enable row level security;
 alter table public.admin_users enable row level security;
 alter table public.brand_theme enable row level security;
+alter table public.notice_config enable row level security;
+alter table public.loan_notices enable row level security;
 
 drop policy if exists "authenticated read borrowers" on public.borrowers;
 create policy "authenticated read borrowers" on public.borrowers
@@ -258,6 +297,14 @@ create policy "authenticated read admin_users" on public.admin_users
 drop policy if exists "public read brand_theme" on public.brand_theme;
 create policy "public read brand_theme" on public.brand_theme
   for select using (true);
+
+drop policy if exists "authenticated read notice_config" on public.notice_config;
+create policy "authenticated read notice_config" on public.notice_config
+  for select using (auth.role() = 'authenticated');
+
+drop policy if exists "authenticated read loan_notices" on public.loan_notices;
+create policy "authenticated read loan_notices" on public.loan_notices
+  for select using (auth.role() = 'authenticated');
 
 -- No insert/update/delete policies are defined for the anon/authenticated
 -- roles: all writes go through the backend using the service_role key.

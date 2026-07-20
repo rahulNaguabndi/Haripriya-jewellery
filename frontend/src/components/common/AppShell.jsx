@@ -8,6 +8,7 @@ const navItems = [
   { to: '/borrowers', label: 'Borrowers' },
   { to: '/loans', label: 'Loans' },
   { to: '/payments', label: 'Payments' },
+  { to: '/notices', label: 'Notices' },
   { to: '/reports', label: 'Reports' },
   { to: '/admin/settings', label: 'Admin Settings' },
 ];
