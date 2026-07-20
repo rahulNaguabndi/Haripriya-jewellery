@@ -21,9 +21,13 @@ export function purityPercent(metalType, purity) {
   return null;
 }
 
-// Current melt value of the pledged item at a given rate (Rs/gram).
-// Accepts a loan row straight from Supabase (snake_case columns).
-export function meltValue({ weight, metal_type: metalType, purity }, ratePerGram) {
+// Current melt value of one pledged item at a given rate (Rs/gram).
+// Accepts a loan_items row straight from Supabase (snake_case columns).
+// Prefers net_weight (metal only, stones excluded) since that's what
+// valuation should use; falls back to gross_weight for items migrated
+// from before the gross/net split was tracked (legacy data only).
+export function itemMeltValue({ gross_weight, net_weight, metal_type: metalType, purity }, ratePerGram) {
+  const weight = net_weight ?? gross_weight;
   const pct = purityPercent(metalType, purity);
   if (pct == null || !weight || !ratePerGram) return null;
   return weight * (pct / 100) * ratePerGram;

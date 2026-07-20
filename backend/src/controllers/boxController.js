@@ -148,7 +148,7 @@ export async function lookupPacket(req, res, next) {
 
     const { data: loan, error: loanError } = await supabase
       .from('loans')
-      .select('id, loan_number, metal_type, status, borrowers(name)')
+      .select('id, loan_number, status, borrowers(name), loan_items(metal_type)')
       .eq('packet_number', packetNumber)
       .maybeSingle();
     if (loanError) throw new ApiError(400, loanError.message);
@@ -156,10 +156,15 @@ export async function lookupPacket(req, res, next) {
       return res.json({ found: false, reason: 'No loan has this packet number.' });
     }
 
+    // One physical packet per loan, even if it covers several items - if
+    // those items span metal types, the packet is filed under the first
+    // item's metal type (matches how the metal_rate snapshot at loan
+    // creation resolves the same ambiguity).
+    const metalType = loan.loan_items?.[0]?.metal_type;
     const { data: box, error: boxError } = await supabase
       .from('boxes')
       .select('*, lockers(name)')
-      .eq('metal_type', loan.metal_type)
+      .eq('metal_type', metalType)
       .lte('range_start', packetNumber)
       .gte('range_end', packetNumber)
       .maybeSingle();
@@ -168,7 +173,7 @@ export async function lookupPacket(req, res, next) {
     if (!box) {
       return res.json({
         found: false,
-        reason: `Loan ${loan.loan_number} found, but no ${loan.metal_type} box is configured for packet #${packetNumber} yet.`,
+        reason: `Loan ${loan.loan_number} found, but no ${metalType} box is configured for packet #${packetNumber} yet.`,
         loan,
       });
     }

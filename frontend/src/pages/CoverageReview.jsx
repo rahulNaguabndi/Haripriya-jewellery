@@ -75,8 +75,18 @@ export default function CoverageReview() {
   const columns = [
     { key: 'loan_number', label: 'Loan #', render: (r) => r.loanNumber },
     { key: 'borrower', label: 'Borrower', render: (r) => r.borrowerName || '—' },
-    { key: 'metal', label: 'Metal', render: (r) => r.metalType },
-    { key: 'melt', label: 'Melt Value', render: (r) => (r.meltValue != null ? formatCurrency(r.meltValue) : '—') },
+    { key: 'metal', label: 'Metal', render: (r) => (r.metalTypes.length ? r.metalTypes.join(' + ') : '—') },
+    { key: 'items', label: 'Items', render: (r) => r.itemCount },
+    {
+      key: 'melt',
+      label: 'Melt Value',
+      render: (r) => (
+        <>
+          {r.meltValue != null ? formatCurrency(r.meltValue) : '—'}
+          {r.hasUnknownItems && <span style={{ color: 'var(--text-muted)' }}> (partial)</span>}
+        </>
+      ),
+    },
     { key: 'owed', label: 'Amount Owed', render: (r) => formatCurrency(r.amountOwed) },
     { key: 'ratio', label: 'Ratio', render: (r) => (r.ratio != null ? r.ratio.toFixed(2) : '—') },
     {
@@ -86,15 +96,8 @@ export default function CoverageReview() {
     },
     {
       key: 'rate',
-      label: 'Rate Used',
-      render: (r) =>
-        r.ratePerGram != null ? (
-          <>
-            {formatCurrency(r.ratePerGram)}/g {!r.rateIsToday && <span style={{ color: 'var(--text-muted)' }}>(stale)</span>}
-          </>
-        ) : (
-          '—'
-        ),
+      label: 'Rate',
+      render: (r) => (r.meltValue != null && !r.rateIsToday ? <span style={{ color: 'var(--text-muted)' }}>stale</span> : r.meltValue != null ? 'today' : '—'),
     },
   ];
 

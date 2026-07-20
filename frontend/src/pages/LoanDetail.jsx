@@ -8,6 +8,7 @@ import InterestSummaryCard from '../components/common/InterestSummaryCard.jsx';
 import LoanModal from '../components/Loans/LoanModal.jsx';
 import PaymentModal from '../components/Payments/PaymentModal.jsx';
 import LoanClosureModal from '../components/Loans/LoanClosureModal.jsx';
+import LoanRolloverModal from '../components/Loans/LoanRolloverModal.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
 
 const statuses = ['active', 'partial_payment', 'closed', 'defaulted'];
@@ -22,6 +23,7 @@ export default function LoanDetail() {
   const [showEdit, setShowEdit] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [showClosure, setShowClosure] = useState(false);
+  const [showRollover, setShowRollover] = useState(false);
 
   async function load() {
     try {
@@ -75,6 +77,16 @@ export default function LoanDetail() {
     }
   }
 
+  async function handleConfirmRollover({ closureDate, interestCollected, loanAmount, loanDate }) {
+    try {
+      const res = await api.post(`/loans/${id}/rollover`, { closureDate, interestCollected, loanAmount, loanDate });
+      setShowRollover(false);
+      navigate(`/loans/${res.data.id}`);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   if (error) return <div style={{ color: 'var(--danger)' }}>{error}</div>;
   if (!loan) return <div>Loading…</div>;
 
@@ -101,16 +113,40 @@ export default function LoanDetail() {
                 {loan.borrowers?.name}
               </Link>
             </div>
-            <div style={{ color: 'var(--text-muted)', fontSize: 13.5 }}>
-              {loan.item_type} · {loan.metal_type} {loan.weight ? `· ${loan.weight}g` : ''} {loan.purity ? `· ${loan.purity}` : ''}
-            </div>
-            {loan.description && <div style={{ color: 'var(--text-muted)', fontSize: 13.5 }}>{loan.description}</div>}
+            {(loan.loan_items || []).map((item) => (
+              <div key={item.id} style={{ color: 'var(--text-muted)', fontSize: 13.5 }}>
+                {item.item_type} · {item.metal_type}
+                {item.gross_weight ? ` · gross ${item.gross_weight}g` : ''}
+                {item.net_weight ? ` · net ${item.net_weight}g` : ''}
+                {item.purity ? ` · ${item.purity}` : ''}
+                {item.description ? ` · ${item.description}` : ''}
+              </div>
+            ))}
+            {loan.previousLoan && (
+              <div style={{ fontSize: 12.5, marginTop: 6 }}>
+                Rolled over from{' '}
+                <Link to={`/loans/${loan.previousLoan.id}`} style={{ color: 'var(--gold-deep)', fontWeight: 600 }}>
+                  {loan.previousLoan.loan_number}
+                </Link>
+              </div>
+            )}
+            {loan.rolledInto && (
+              <div style={{ fontSize: 12.5, marginTop: 6 }}>
+                Rolled into{' '}
+                <Link to={`/loans/${loan.rolledInto.id}`} style={{ color: 'var(--gold-deep)', fontWeight: 600 }}>
+                  {loan.rolledInto.loan_number}
+                </Link>
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <select value={loan.status} onChange={handleStatusChange}>
               {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
             <button className="btn btn-secondary" onClick={() => setShowEdit(true)}>Edit</button>
+            {loan.status !== 'closed' && !loan.rolledInto && (
+              <button className="btn btn-secondary" onClick={() => setShowRollover(true)}>Roll Over</button>
+            )}
           </div>
         </div>
 
@@ -228,6 +264,14 @@ export default function LoanDetail() {
           cardReturned={loan.card_returned}
           onConfirm={handleConfirmClosure}
           onCancel={() => setShowClosure(false)}
+        />
+      )}
+      {showRollover && (
+        <LoanRolloverModal
+          loan={loan}
+          suggestedInterest={loan.interest?.totalInterestAccrued}
+          onConfirm={handleConfirmRollover}
+          onCancel={() => setShowRollover(false)}
         />
       )}
     </div>

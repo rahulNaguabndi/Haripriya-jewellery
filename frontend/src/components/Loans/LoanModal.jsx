@@ -7,13 +7,11 @@ const itemTypes = ['Ring', 'Necklace', 'Bracelet', 'Earrings', 'Bangle', 'Chain'
 const metalTypes = ['Gold', 'Silver'];
 const goldKarats = ['24k', '22k', '18k', '14k'];
 
+const emptyItem = { itemType: 'Ring', metalType: 'Gold', grossWeight: '', netWeight: '', purity: '', description: '' };
+
 const empty = {
   borrowerId: '',
-  itemType: 'Ring',
-  metalType: 'Gold',
-  weight: '',
-  purity: '',
-  description: '',
+  items: [{ ...emptyItem }],
   loanAmount: '',
   loanDate: new Date().toISOString().slice(0, 10),
   dueDate: '',
@@ -21,17 +19,24 @@ const empty = {
   cardGiven: false,
 };
 
+function itemFromRow(row) {
+  return {
+    itemType: row.item_type,
+    metalType: row.metal_type,
+    grossWeight: row.gross_weight ?? '',
+    netWeight: row.net_weight ?? '',
+    purity: row.purity ?? '',
+    description: row.description ?? '',
+  };
+}
+
 export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
   const [form, setForm] = useState(
     loan
       ? {
           ...empty,
           borrowerId: loan.borrower_id,
-          itemType: loan.item_type,
-          metalType: loan.metal_type,
-          weight: loan.weight ?? '',
-          purity: loan.purity ?? '',
-          description: loan.description ?? '',
+          items: loan.loan_items?.length ? loan.loan_items.map(itemFromRow) : [{ ...emptyItem }],
           loanAmount: loan.loan_amount,
           loanDate: loan.loan_date,
           dueDate: loan.due_date ?? '',
@@ -71,6 +76,21 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
+  function updateItem(index, field, value) {
+    setForm((f) => ({
+      ...f,
+      items: f.items.map((it, i) => (i === index ? { ...it, [field]: value } : it)),
+    }));
+  }
+
+  function addItem() {
+    setForm((f) => ({ ...f, items: [...f.items, { ...emptyItem }] }));
+  }
+
+  function removeItem(index) {
+    setForm((f) => ({ ...f, items: f.items.filter((_, i) => i !== index) }));
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!loan && !borrowerId && !form.borrowerId) {
@@ -81,11 +101,20 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
     setError('');
     try {
       const payload = {
-        ...form,
-        weight: form.weight === '' ? null : Number(form.weight),
+        borrowerId: form.borrowerId,
+        items: form.items.map((it) => ({
+          itemType: it.itemType,
+          metalType: it.metalType,
+          grossWeight: it.grossWeight === '' ? null : Number(it.grossWeight),
+          netWeight: it.netWeight === '' ? null : Number(it.netWeight),
+          purity: it.purity || null,
+          description: it.description || null,
+        })),
         loanAmount: Number(form.loanAmount),
-        interestRate: form.interestRate === '' ? undefined : Number(form.interestRate),
+        loanDate: form.loanDate,
         dueDate: form.dueDate || null,
+        interestRate: form.interestRate === '' ? undefined : Number(form.interestRate),
+        cardGiven: form.cardGiven,
       };
       if (loan) {
         await api.put(`/loans/${loan.id}`, payload);
@@ -101,7 +130,7 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
   }
 
   return (
-    <Modal title={loan ? 'Edit Loan' : 'New Loan'} onClose={onClose} width={520}>
+    <Modal title={loan ? 'Edit Loan' : 'New Loan'} onClose={onClose} width={600}>
       <form onSubmit={handleSubmit}>
         {!borrowerId && (
           <div className="field" style={{ position: 'relative' }}>
@@ -164,58 +193,71 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 10 }}>
-          <div className="field" style={{ flex: 1 }}>
-            <label>Item Type *</label>
-            <select required value={form.itemType} onChange={(e) => set('itemType', e.target.value)}>
-              {itemTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          <div className="field" style={{ flex: 1 }}>
-            <label>Metal Type *</label>
-            <select
-              required
-              value={form.metalType}
-              onChange={(e) => {
-                set('metalType', e.target.value);
-                set('purity', '');
-              }}
-            >
-              {metalTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 10 }}>
-          <div className="field" style={{ flex: 1 }}>
-            <label>Weight (grams)</label>
-            <input type="number" step="0.01" value={form.weight} onChange={(e) => set('weight', e.target.value)} />
-          </div>
-          <div className="field" style={{ flex: 1 }}>
-            <label>Purity</label>
-            {form.metalType === 'Gold' ? (
-              <select value={form.purity} onChange={(e) => set('purity', e.target.value)}>
-                <option value="">Select karat…</option>
-                {goldKarats.map((k) => <option key={k} value={k}>{k}</option>)}
-              </select>
-            ) : (
-              <input
-                type="number"
-                step="0.1"
-                min="0"
-                max="100"
-                placeholder="Estimated melt yield %"
-                value={form.purity}
-                onChange={(e) => set('purity', e.target.value)}
-              />
+        <label>Pledged Items *</label>
+        {form.items.map((item, i) => (
+          <div key={i} className="card" style={{ padding: 12, marginBottom: 10, background: 'var(--hover)' }}>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div className="field" style={{ flex: 1, marginBottom: 8 }}>
+                <label style={{ fontSize: 11.5 }}>Item Type *</label>
+                <select required value={item.itemType} onChange={(e) => updateItem(i, 'itemType', e.target.value)}>
+                  {itemTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div className="field" style={{ flex: 1, marginBottom: 8 }}>
+                <label style={{ fontSize: 11.5 }}>Metal Type *</label>
+                <select
+                  required
+                  value={item.metalType}
+                  onChange={(e) => {
+                    updateItem(i, 'metalType', e.target.value);
+                    updateItem(i, 'purity', '');
+                  }}
+                >
+                  {metalTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div className="field" style={{ flex: 1, marginBottom: 8 }}>
+                <label style={{ fontSize: 11.5 }}>Gross Weight (g)</label>
+                <input type="number" step="0.01" value={item.grossWeight} onChange={(e) => updateItem(i, 'grossWeight', e.target.value)} />
+              </div>
+              <div className="field" style={{ flex: 1, marginBottom: 8 }}>
+                <label style={{ fontSize: 11.5 }}>Net Weight (g, excl. stones)</label>
+                <input type="number" step="0.01" value={item.netWeight} onChange={(e) => updateItem(i, 'netWeight', e.target.value)} />
+              </div>
+              <div className="field" style={{ flex: 1, marginBottom: 8 }}>
+                <label style={{ fontSize: 11.5 }}>Purity</label>
+                {item.metalType === 'Gold' ? (
+                  <select value={item.purity} onChange={(e) => updateItem(i, 'purity', e.target.value)}>
+                    <option value="">Select karat…</option>
+                    {goldKarats.map((k) => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    placeholder="Melt yield %"
+                    value={item.purity}
+                    onChange={(e) => updateItem(i, 'purity', e.target.value)}
+                  />
+                )}
+              </div>
+            </div>
+            <div className="field" style={{ marginBottom: 8 }}>
+              <label style={{ fontSize: 11.5 }}>Description</label>
+              <input value={item.description} onChange={(e) => updateItem(i, 'description', e.target.value)} />
+            </div>
+            {form.items.length > 1 && (
+              <button type="button" className="btn btn-danger" onClick={() => removeItem(i)}>Remove Item</button>
             )}
           </div>
-        </div>
-
-        <div className="field">
-          <label>Description</label>
-          <input value={form.description} onChange={(e) => set('description', e.target.value)} />
-        </div>
+        ))}
+        <button type="button" className="btn btn-secondary" style={{ marginBottom: 16 }} onClick={addItem}>
+          + Add Another Item
+        </button>
 
         <div className="field">
           <label>Packet Number</label>

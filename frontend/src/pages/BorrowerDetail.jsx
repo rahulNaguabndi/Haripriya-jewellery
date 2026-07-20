@@ -47,8 +47,21 @@ export default function BorrowerDetail() {
 
   const columns = [
     { key: 'loan_number', label: 'Loan #' },
-    { key: 'item_type', label: 'Item' },
-    { key: 'metal_type', label: 'Metal' },
+    {
+      key: 'item_type',
+      label: 'Items',
+      render: (r) => {
+        const items = r.loan_items || [];
+        if (items.length === 0) return '—';
+        if (items.length === 1) return items[0].item_type;
+        return `${items[0].item_type} +${items.length - 1} more`;
+      },
+    },
+    {
+      key: 'metal_type',
+      label: 'Metal',
+      render: (r) => [...new Set((r.loan_items || []).map((i) => i.metal_type))].join(', ') || '—',
+    },
     { key: 'loan_amount', label: 'Amount', render: (r) => formatCurrency(r.loan_amount) },
     { key: 'interest', label: 'Interest Accrued', render: (r) => formatCurrency(r.interest?.totalInterestAccrued) },
     { key: 'loan_date', label: 'Loan Date', render: (r) => formatDate(r.loan_date) },

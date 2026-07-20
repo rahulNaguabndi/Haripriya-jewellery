@@ -4,7 +4,7 @@ import { requireFields } from '../utils/validators.js';
 import { calculateCompoundInterest } from '../utils/interestCalculator.js';
 import { getActiveInterestConfig } from '../utils/interestConfig.js';
 import { getTodayRate, getLatestRate } from '../utils/dailyRates.js';
-import { meltValue, coverageRatio, coverageStatus } from '../utils/coverageCalculator.js';
+import { itemMeltValue, coverageRatio, coverageStatus } from '../utils/coverageCalculator.js';
 
 async function getActiveCoverageConfig() {
   const { data, error } = await supabase
@@ -92,7 +92,7 @@ export async function listCoverage(req, res, next) {
 
     const { data: loans, error: loansError } = await supabase
       .from('loans')
-      .select('id, loan_number, loan_date, metal_type, weight, purity, loan_amount, interest_rate, borrowers(name)')
+      .select('id, loan_number, loan_date, loan_amount, interest_rate, borrowers(name), loan_items(*)')
       .in('status', ['active', 'partial_payment']);
     if (loansError) throw new ApiError(400, loansError.message);
 
@@ -138,9 +138,30 @@ export async function listCoverage(req, res, next) {
         tiers,
       });
 
-      const rateRow = await currentRate(loan.metal_type);
-      const value = rateRow ? meltValue(loan, rateRow.rate_per_gram) : null;
-      const ratio = coverageRatio(value, interest.totalAmountDue);
+      // Sum melt value across every item on the loan (each may be a
+      // different metal type, e.g. one gold + one silver item under the
+      // same loan). Items whose rate/purity can't be resolved are simply
+      // skipped from the sum, not treated as zero - hasUnknownItems flags
+      // when that happened so the total isn't silently understated.
+      const today = new Date().toISOString().slice(0, 10);
+      const metalTypesUsed = new Set();
+      let totalMeltValue = null;
+      let hasUnknownItems = false;
+      let allRatesToday = true;
+
+      for (const item of loan.loan_items || []) {
+        const rateRow = await currentRate(item.metal_type);
+        const itemValue = rateRow ? itemMeltValue(item, rateRow.rate_per_gram) : null;
+        if (itemValue == null) {
+          hasUnknownItems = true;
+          continue;
+        }
+        totalMeltValue = (totalMeltValue ?? 0) + itemValue;
+        metalTypesUsed.add(item.metal_type);
+        if (rateRow?.rate_date !== today) allRatesToday = false;
+      }
+
+      const ratio = coverageRatio(totalMeltValue, interest.totalAmountDue);
       const status = coverageStatus(ratio, redThreshold, amberThreshold);
 
       results.push({
@@ -148,13 +169,12 @@ export async function listCoverage(req, res, next) {
         loanNumber: loan.loan_number,
         borrowerName: loan.borrowers?.name || null,
         loanDate: loan.loan_date,
-        metalType: loan.metal_type,
-        weight: loan.weight,
-        purity: loan.purity,
+        metalTypes: [...metalTypesUsed],
+        itemCount: (loan.loan_items || []).length,
         amountOwed: interest.totalAmountDue,
-        ratePerGram: rateRow?.rate_per_gram ?? null,
-        rateIsToday: rateRow?.rate_date === new Date().toISOString().slice(0, 10),
-        meltValue: value,
+        rateIsToday: allRatesToday,
+        meltValue: totalMeltValue,
+        hasUnknownItems,
         ratio,
         status,
       });

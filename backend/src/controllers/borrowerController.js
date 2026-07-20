@@ -127,7 +127,7 @@ export async function getBorrower(req, res, next) {
 
     const { data: loans, error: loansError } = await supabase
       .from('loans')
-      .select('*')
+      .select('*, loan_items(*)')
       .eq('borrower_id', req.params.id)
       .order('created_at', { ascending: false });
 

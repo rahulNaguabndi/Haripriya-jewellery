@@ -100,11 +100,62 @@ alter table public.loans
 alter table public.loans
   alter column packet_number set default nextval('public.loan_packet_number_seq');
 
+-- Rollover: closing a loan once interest is paid to date and opening a
+-- brand-new loan for the same borrower/item is NOT the same as renewing
+-- in place - it's a distinct new loan row that references the one it
+-- replaced, for audit/history purposes.
+alter table public.loans
+  add column if not exists previous_loan_id uuid references public.loans(id);
+
+create index if not exists idx_loans_previous_loan_id on public.loans (previous_loan_id);
+
 create index if not exists idx_loans_borrower_id on public.loans (borrower_id);
 create index if not exists idx_loans_status on public.loans (status);
 create index if not exists idx_loans_metal_type on public.loans (metal_type);
 create index if not exists idx_loans_item_type on public.loans (item_type);
 create index if not exists idx_loans_loan_amount on public.loans (loan_amount);
+
+-- ---------------------------------------------------------------------
+-- Loan items - a loan can cover several pledged ornaments under one
+-- amount/document (confirmed real business practice, not an edge case).
+-- Replaces the single item_type/metal_type/weight/purity/description
+-- columns on `loans` above, which are kept in place (unused going
+-- forward) rather than dropped, to avoid a destructive column removal.
+-- gross_weight is the item's full weight; net_weight is the metal-only
+-- weight after excluding stones (only net_weight is used for valuation).
+-- No check constraint on metal_type here (mirrors loans.metal_type,
+-- which also has none) - some historical loans are metal_type
+-- 'Platinum', which would fail a Gold/Silver-only constraint.
+-- ---------------------------------------------------------------------
+create table if not exists public.loan_items (
+  id uuid primary key default gen_random_uuid(),
+  loan_id uuid not null references public.loans(id) on delete cascade,
+  item_type text not null,
+  metal_type text not null,
+  gross_weight numeric,
+  net_weight numeric,
+  purity text,
+  description text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_loan_items_loan_id on public.loan_items (loan_id);
+
+-- One-time backfill: give every existing loan a single loan_items row
+-- built from its legacy single-item columns (weight -> gross_weight;
+-- net_weight left null, since the gross/net split wasn't recorded
+-- before this feature). Idempotent - only inserts for loans that don't
+-- already have at least one loan_items row, so safe to re-run.
+insert into public.loan_items (loan_id, item_type, metal_type, gross_weight, net_weight, purity, description)
+select l.id, l.item_type, l.metal_type, l.weight, null, l.purity, l.description
+from public.loans l
+where not exists (select 1 from public.loan_items li where li.loan_id = l.id);
+
+-- item_type/metal_type were NOT NULL when a loan had exactly one item;
+-- new loans no longer populate these (item data lives in loan_items now).
+alter table public.loans alter column item_type drop not null;
+alter table public.loans alter column metal_type drop not null;
 
 -- ---------------------------------------------------------------------
 -- Payments
@@ -366,6 +417,7 @@ alter table public.daily_rates enable row level security;
 alter table public.coverage_config enable row level security;
 alter table public.lockers enable row level security;
 alter table public.boxes enable row level security;
+alter table public.loan_items enable row level security;
 
 drop policy if exists "authenticated read borrowers" on public.borrowers;
 create policy "authenticated read borrowers" on public.borrowers
@@ -415,6 +467,10 @@ create policy "authenticated read lockers" on public.lockers
 
 drop policy if exists "authenticated read boxes" on public.boxes;
 create policy "authenticated read boxes" on public.boxes
+  for select using (auth.role() = 'authenticated');
+
+drop policy if exists "authenticated read loan_items" on public.loan_items;
+create policy "authenticated read loan_items" on public.loan_items
   for select using (auth.role() = 'authenticated');
 
 -- No insert/update/delete policies are defined for the anon/authenticated
