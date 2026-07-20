@@ -83,6 +83,11 @@ alter table public.loans
 alter table public.loans
   add column if not exists card_returned boolean not null default false;
 
+-- Snapshot of the day's locked metal rate (Rs/gram) at loan creation time -
+-- used later to compute the loan's original coverage margin.
+alter table public.loans
+  add column if not exists metal_rate numeric;
+
 create index if not exists idx_loans_borrower_id on public.loans (borrower_id);
 create index if not exists idx_loans_status on public.loans (status);
 create index if not exists idx_loans_metal_type on public.loans (metal_type);
@@ -198,6 +203,46 @@ create table if not exists public.loan_notices (
 create index if not exists idx_loan_notices_loan_id on public.loan_notices (loan_id);
 
 -- ---------------------------------------------------------------------
+-- Daily metal rates - captured once per day per metal type (Rs/gram),
+-- after the bullion market opens (~12:00 PM IST). Locked once set; only a
+-- super_admin can override an already-set day's rate (enforced in the
+-- backend, not here - the frontend confirms with the user before calling
+-- the override).
+-- ---------------------------------------------------------------------
+create table if not exists public.daily_rates (
+  id uuid primary key default gen_random_uuid(),
+  rate_date date not null,
+  metal_type text not null,
+  rate_per_gram numeric not null,
+  set_by uuid references auth.users(id),
+  set_at timestamptz not null default now(),
+  unique (rate_date, metal_type)
+);
+
+create index if not exists idx_daily_rates_date on public.daily_rates (rate_date);
+
+-- ---------------------------------------------------------------------
+-- Coverage/margin thresholds (admin settings). A loan's coverage ratio =
+-- (item's current melt value at today's rate) / (principal + interest
+-- currently owed). red_threshold and amber_threshold are the ratio
+-- cutoffs used to flag under-covered loans for the quarterly review.
+-- ---------------------------------------------------------------------
+create table if not exists public.coverage_config (
+  id uuid primary key default gen_random_uuid(),
+  config_name text not null default 'default',
+  is_active boolean not null default true,
+  red_threshold numeric not null default 1.0,
+  amber_threshold numeric not null default 1.1,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id)
+);
+
+insert into public.coverage_config (config_name, is_active, red_threshold, amber_threshold)
+select 'default', true, 1.0, 1.1
+where not exists (select 1 from public.coverage_config where config_name = 'default');
+
+-- ---------------------------------------------------------------------
 -- Admin users (mirrors Supabase auth users with app-level role info)
 -- ---------------------------------------------------------------------
 create table if not exists public.admin_users (
@@ -271,6 +316,8 @@ alter table public.admin_users enable row level security;
 alter table public.brand_theme enable row level security;
 alter table public.notice_config enable row level security;
 alter table public.loan_notices enable row level security;
+alter table public.daily_rates enable row level security;
+alter table public.coverage_config enable row level security;
 
 drop policy if exists "authenticated read borrowers" on public.borrowers;
 create policy "authenticated read borrowers" on public.borrowers
@@ -304,6 +351,14 @@ create policy "authenticated read notice_config" on public.notice_config
 
 drop policy if exists "authenticated read loan_notices" on public.loan_notices;
 create policy "authenticated read loan_notices" on public.loan_notices
+  for select using (auth.role() = 'authenticated');
+
+drop policy if exists "authenticated read daily_rates" on public.daily_rates;
+create policy "authenticated read daily_rates" on public.daily_rates
+  for select using (auth.role() = 'authenticated');
+
+drop policy if exists "authenticated read coverage_config" on public.coverage_config;
+create policy "authenticated read coverage_config" on public.coverage_config
   for select using (auth.role() = 'authenticated');
 
 -- No insert/update/delete policies are defined for the anon/authenticated

@@ -36,6 +36,9 @@ export default function AdminSettings() {
   const [thresholdMonths, setThresholdMonths] = useState([]);
   const [costAmount, setCostAmount] = useState(0);
   const [savingNotices, setSavingNotices] = useState(false);
+  const [redThreshold, setRedThreshold] = useState(1.0);
+  const [amberThreshold, setAmberThreshold] = useState(1.1);
+  const [savingCoverage, setSavingCoverage] = useState(false);
   const [adminUsers, setAdminUsers] = useState([]);
   const [role, setRole] = useState(null);
   const [error, setError] = useState('');
@@ -67,10 +70,11 @@ export default function AdminSettings() {
 
   async function loadAll() {
     try {
-      const [meRes, configRes, noticeRes, usersRes] = await Promise.all([
+      const [meRes, configRes, noticeRes, coverageRes, usersRes] = await Promise.all([
         api.get('/auth/me'),
         api.get('/admin/config/interest'),
         api.get('/admin/config/notices'),
+        api.get('/admin/config/coverage'),
         api.get('/admin/users'),
       ]);
       setRole(meRes.data.adminProfile?.role || null);
@@ -79,6 +83,8 @@ export default function AdminSettings() {
       setNoticeConfig(noticeRes.data);
       setThresholdMonths(noticeRes.data.threshold_months || []);
       setCostAmount(noticeRes.data.cost_amount ?? 0);
+      setRedThreshold(coverageRes.data.red_threshold ?? 1.0);
+      setAmberThreshold(coverageRes.data.amber_threshold ?? 1.1);
       setAdminUsers(usersRes.data.data);
     } catch (err) {
       setError(err.message);
@@ -148,6 +154,22 @@ export default function AdminSettings() {
       setError(err.message);
     } finally {
       setSavingNotices(false);
+    }
+  }
+
+  async function saveCoverageConfig() {
+    setSavingCoverage(true);
+    setError('');
+    try {
+      await api.put('/admin/config/coverage', {
+        redThreshold: Number(redThreshold),
+        amberThreshold: Number(amberThreshold),
+      });
+      loadAll();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingCoverage(false);
     }
   }
 
@@ -359,6 +381,33 @@ export default function AdminSettings() {
         {!canEditConfig && (
           <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 8 }}>
             Only admin / super admin roles can edit notice settings.
+          </div>
+        )}
+      </div>
+
+      <div className="card" style={{ padding: 22, marginBottom: 24 }}>
+        <div className="font-serif" style={{ fontSize: 18, fontWeight: 600, marginBottom: 6 }}>Coverage Thresholds</div>
+        <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 14 }}>
+          Ratio = today's melt value ÷ amount owed. Red = at risk, Amber = watch, Green = healthy.
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <div className="field" style={{ flex: 1 }}>
+            <label>Red threshold (ratio ≤)</label>
+            <input type="number" step="0.01" value={redThreshold} disabled={!canEditConfig} onChange={(e) => setRedThreshold(e.target.value)} />
+          </div>
+          <div className="field" style={{ flex: 1 }}>
+            <label>Amber threshold (ratio &lt;)</label>
+            <input type="number" step="0.01" value={amberThreshold} disabled={!canEditConfig} onChange={(e) => setAmberThreshold(e.target.value)} />
+          </div>
+        </div>
+        {canEditConfig && (
+          <button className="btn btn-primary" onClick={saveCoverageConfig} disabled={savingCoverage}>
+            {savingCoverage ? 'Saving…' : 'Save Coverage Settings'}
+          </button>
+        )}
+        {!canEditConfig && (
+          <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 8 }}>
+            Only admin / super admin roles can edit coverage thresholds.
           </div>
         )}
       </div>

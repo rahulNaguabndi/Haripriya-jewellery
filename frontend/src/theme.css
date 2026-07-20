@@ -149,6 +149,11 @@ label {
   .badge-card-none { background: var(--hover); color: var(--text-muted); }
   .badge-card-pending { background: var(--warning-soft); color: var(--warning); }
   .badge-card-returned { background: var(--success-soft); color: var(--success); }
+
+  .badge-red { background: var(--danger-soft); color: var(--danger); }
+  .badge-amber { background: var(--warning-soft); color: var(--warning); }
+  .badge-green { background: var(--success-soft); color: var(--success); }
+  .badge-unknown { background: var(--hover); color: var(--text-muted); }
 }
 
 ::selection { background: var(--gold); color: var(--ink); }

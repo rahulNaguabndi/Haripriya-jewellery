@@ -4,7 +4,8 @@ import BorrowerModal from '../Borrowers/BorrowerModal.jsx';
 import { api } from '../../services/api.js';
 
 const itemTypes = ['Ring', 'Necklace', 'Bracelet', 'Earrings', 'Bangle', 'Chain', 'Other'];
-const metalTypes = ['Gold', 'Silver', 'Platinum'];
+const metalTypes = ['Gold', 'Silver'];
+const goldKarats = ['24k', '22k', '18k', '14k'];
 
 const empty = {
   borrowerId: '',
@@ -172,7 +173,14 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
           </div>
           <div className="field" style={{ flex: 1 }}>
             <label>Metal Type *</label>
-            <select required value={form.metalType} onChange={(e) => set('metalType', e.target.value)}>
+            <select
+              required
+              value={form.metalType}
+              onChange={(e) => {
+                set('metalType', e.target.value);
+                set('purity', '');
+              }}
+            >
               {metalTypes.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
@@ -185,7 +193,22 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
           </div>
           <div className="field" style={{ flex: 1 }}>
             <label>Purity</label>
-            <input placeholder="22k" value={form.purity} onChange={(e) => set('purity', e.target.value)} />
+            {form.metalType === 'Gold' ? (
+              <select value={form.purity} onChange={(e) => set('purity', e.target.value)}>
+                <option value="">Select karat…</option>
+                {goldKarats.map((k) => <option key={k} value={k}>{k}</option>)}
+              </select>
+            ) : (
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                max="100"
+                placeholder="Estimated melt yield %"
+                value={form.purity}
+                onChange={(e) => set('purity', e.target.value)}
+              />
+            )}
           </div>
         </div>
 

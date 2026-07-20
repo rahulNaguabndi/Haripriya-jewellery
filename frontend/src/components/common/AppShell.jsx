@@ -9,6 +9,7 @@ const navItems = [
   { to: '/loans', label: 'Loans' },
   { to: '/payments', label: 'Payments' },
   { to: '/notices', label: 'Notices' },
+  { to: '/coverage', label: 'Coverage' },
   { to: '/reports', label: 'Reports' },
   { to: '/admin/settings', label: 'Admin Settings' },
 ];

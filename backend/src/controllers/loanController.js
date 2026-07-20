@@ -3,6 +3,7 @@ import { ApiError } from '../middleware/errorHandler.js';
 import { requireFields, generateLoanNumber } from '../utils/validators.js';
 import { calculateCompoundInterest } from '../utils/interestCalculator.js';
 import { getActiveInterestConfig, resolveInterestRate } from '../utils/interestConfig.js';
+import { getTodayRate, getLatestRate } from '../utils/dailyRates.js';
 
 async function nextLoanNumber() {
   const today = new Date();
@@ -60,6 +61,11 @@ export async function createLoan(req, res, next) {
     const appliedRate = interestRate ?? (await resolveInterestRate(loanAmount, 24));
     const loanNumber = await nextLoanNumber();
 
+    // Snapshot the day's locked metal rate (today's if set, else the most
+    // recent one on record) - server-resolved, not client-supplied, so it
+    // can't be tampered with from the loan form.
+    const rateRow = (await getTodayRate(metalType)) || (await getLatestRate(metalType));
+
     const { data, error } = await supabase
       .from('loans')
       .insert({
@@ -75,6 +81,7 @@ export async function createLoan(req, res, next) {
         due_date: dueDate,
         interest_rate: appliedRate,
         card_given: !!cardGiven,
+        metal_rate: rateRow?.rate_per_gram ?? null,
         created_by: req.user.id,
       })
       .select()
