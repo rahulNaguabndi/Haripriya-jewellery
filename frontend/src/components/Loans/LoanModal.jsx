@@ -217,6 +217,14 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
           <input value={form.description} onChange={(e) => set('description', e.target.value)} />
         </div>
 
+        <div className="field">
+          <label>Packet Number</label>
+          <input disabled value={loan?.packet_number ?? 'Auto-assigned on save'} />
+          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
+            Used for physical storage/locker lookup - assigned automatically, not editable.
+          </div>
+        </div>
+
         <div style={{ display: 'flex', gap: 10 }}>
           <div className="field" style={{ flex: 1 }}>
             <label>Loan Amount (₹) *</label>

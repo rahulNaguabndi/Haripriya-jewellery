@@ -124,6 +124,10 @@ export default function LoanDetail() {
             <div style={{ fontSize: 16, fontWeight: 600 }}>{formatDate(loan.loan_date)}</div>
           </div>
           <div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Packet Number</div>
+            <div style={{ fontSize: 16, fontWeight: 600 }}>{loan.packet_number ?? '—'}</div>
+          </div>
+          <div>
             <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Due Date</div>
             <div style={{ fontSize: 16, fontWeight: 600 }}>{formatDate(loan.due_date)}</div>
           </div>

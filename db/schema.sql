@@ -88,6 +88,18 @@ alter table public.loans
 alter table public.loans
   add column if not exists metal_rate numeric;
 
+-- Packet number: a fresh, physical-packet-tracking number distinct from
+-- loan_number (which is date-based and resets daily, unsuitable for
+-- bucketing into storage box ranges). Starts at 1001 per the business
+-- owner's request; existing loans are intentionally left null - this is a
+-- forward-only rollout, not a retrofit of already-labeled historical
+-- packets.
+create sequence if not exists public.loan_packet_number_seq start with 1001;
+alter table public.loans
+  add column if not exists packet_number bigint unique;
+alter table public.loans
+  alter column packet_number set default nextval('public.loan_packet_number_seq');
+
 create index if not exists idx_loans_borrower_id on public.loans (borrower_id);
 create index if not exists idx_loans_status on public.loans (status);
 create index if not exists idx_loans_metal_type on public.loans (metal_type);
@@ -243,6 +255,40 @@ select 'default', true, 1.0, 1.1
 where not exists (select 1 from public.coverage_config where config_name = 'default');
 
 -- ---------------------------------------------------------------------
+-- Storage: lockers and boxes. A locker is a named physical cabinet,
+-- tagged with the metal type(s) it may hold (a locker can be Gold-only,
+-- Silver-only, or both, since some cabinets house separate racks per
+-- metal). A box lives inside one locker, is itself single-metal, has a
+-- globally unique box_number, and covers a packet-number range - admin-
+-- maintained by hand (not auto-computed), since boxes keep absorbing new
+-- packets over time until manually reassigned during a reshuffle.
+-- ---------------------------------------------------------------------
+create table if not exists public.lockers (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  metal_types jsonb not null default '[]'::jsonb,
+  display_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id)
+);
+
+create table if not exists public.boxes (
+  id uuid primary key default gen_random_uuid(),
+  locker_id uuid not null references public.lockers(id) on delete restrict,
+  box_number text not null unique,
+  metal_type text not null check (metal_type in ('Gold', 'Silver')),
+  range_start bigint,
+  range_end bigint,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id)
+);
+
+create index if not exists idx_boxes_locker_id on public.boxes (locker_id);
+create index if not exists idx_boxes_metal_type on public.boxes (metal_type);
+
+-- ---------------------------------------------------------------------
 -- Admin users (mirrors Supabase auth users with app-level role info)
 -- ---------------------------------------------------------------------
 create table if not exists public.admin_users (
@@ -318,6 +364,8 @@ alter table public.notice_config enable row level security;
 alter table public.loan_notices enable row level security;
 alter table public.daily_rates enable row level security;
 alter table public.coverage_config enable row level security;
+alter table public.lockers enable row level security;
+alter table public.boxes enable row level security;
 
 drop policy if exists "authenticated read borrowers" on public.borrowers;
 create policy "authenticated read borrowers" on public.borrowers
@@ -359,6 +407,14 @@ create policy "authenticated read daily_rates" on public.daily_rates
 
 drop policy if exists "authenticated read coverage_config" on public.coverage_config;
 create policy "authenticated read coverage_config" on public.coverage_config
+  for select using (auth.role() = 'authenticated');
+
+drop policy if exists "authenticated read lockers" on public.lockers;
+create policy "authenticated read lockers" on public.lockers
+  for select using (auth.role() = 'authenticated');
+
+drop policy if exists "authenticated read boxes" on public.boxes;
+create policy "authenticated read boxes" on public.boxes
   for select using (auth.role() = 'authenticated');
 
 -- No insert/update/delete policies are defined for the anon/authenticated
