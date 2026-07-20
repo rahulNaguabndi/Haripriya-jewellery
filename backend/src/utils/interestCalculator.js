@@ -2,6 +2,7 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const DAYS_PER_YEAR = 365;
 
 const round2 = (n) => Math.round(n * 100) / 100;
+const ceilTo10 = (n) => Math.ceil(n / 10) * 10;
 const isoDate = (d) => new Date(d).toISOString().slice(0, 10);
 
 // Returns the tier whose [minAmount, maxAmount] range contains principalAmount,
@@ -16,81 +17,141 @@ export function getApplicableTier(principalAmount, tiers = []) {
   );
 }
 
-// Splits one continuous-rate segment [segStart, segEnd) into a human-readable
-// breakdown: full 365-day "Year N" chunks (each year's interest is added to
-// the balance before the next year's interest is computed on it — which is
-// mathematically identical to raising (1 + rate/100) to an integer power),
-// followed by ~30-day "Month N" chunks for whatever remainder is left under
-// a year. Every chunk's interest is opening balance * ((1+rate/100)^(days/365) - 1),
-// so the sum of all chunks always equals openingPrincipal * (1+rate/100)^(totalDays/365) —
-// identical to the plain compound-interest formula, just decomposed into steps.
-function splitSegmentIntoChunks({ segStart, segEnd, openingBalance, rate, segmentLabel }) {
-  const chunks = [];
-  const totalDays = Math.max(0, (segEnd - segStart) / MS_PER_DAY);
-  if (totalDays <= 0 || openingBalance <= 0) return chunks;
+function addCalendarMonths(date, n) {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + n);
+  return d;
+}
 
-  let cursorDate = segStart;
-  let cursorBalance = openingBalance;
-  let remainingDays = totalDays;
+function addCalendarYears(date, n) {
+  const d = new Date(date);
+  d.setFullYear(d.getFullYear() + n);
+  return d;
+}
+
+// Real calendar months elapsed (a "month" is the actual calendar month, not a
+// fixed 30-day block) plus whatever whole days are left over after the last
+// full month. E.g. 26/01/2026 -> 20/07/2026 = 5 months, 24 days.
+function calendarMonthsAndDays(start, end) {
+  let cursor = new Date(start);
+  let months = 0;
+  while (addCalendarMonths(cursor, 1).getTime() <= end.getTime()) {
+    cursor = addCalendarMonths(cursor, 1);
+    months += 1;
+  }
+  const days = Math.round((end.getTime() - cursor.getTime()) / MS_PER_DAY);
+  return { months, days };
+}
+
+// Computes interest accrued by `amount` between `start` and `end`, per the
+// business's real calculation method:
+//  - If the whole span is under one calendar month, charge a single flat
+//    month's interest (minimum-holding-period floor) - this only applies at
+//    the top of the span, not to a trailing remainder after full years.
+//  - Otherwise, walk forward one full calendar year at a time: each full
+//    year's interest is simple (principal * rate%), then folds into the
+//    principal (uncompounded/uncapped, carried forward unrounded) for the
+//    next year, re-resolving the applicable rate tier as the balance grows.
+//  - Whatever is left under a year is split into full calendar months
+//    (flat monthlyRate% each, regardless of that month's actual length) plus
+//    a final day-count remainder (charged at annualRate/365 per day).
+// Returns the unrounded total interest plus a chunk-by-chunk breakdown for
+// display purposes.
+function accrueInterest({ amount, startDate, endDate, tiers, fallbackRate, label }) {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const chunks = [];
+
+  if (end.getTime() <= start.getTime()) {
+    return { total: 0, finalRate: getApplicableTier(amount, tiers)?.interestRate ?? fallbackRate, chunks };
+  }
+
+  const { months: totalMonths } = calendarMonthsAndDays(start, end);
+
+  // Minimum-holding-period floor: whole span under a month still charged a
+  // full month's interest.
+  if (totalMonths === 0 && addCalendarYears(start, 1).getTime() > end.getTime()) {
+    const rate = getApplicableTier(amount, tiers)?.interestRate ?? fallbackRate;
+    const interest = (amount * rate) / 100 / 12;
+    chunks.push({
+      type: 'month',
+      segmentLabel: label,
+      periodLabel: 'Minimum charge (under 1 month)',
+      startDate: isoDate(start),
+      endDate: isoDate(end),
+      days: Math.round((end.getTime() - start.getTime()) / MS_PER_DAY),
+      rate,
+      openingBalance: round2(amount),
+      interest: round2(interest),
+      closingBalance: round2(amount + interest),
+      note: `Redeemed/checked under 1 month - flat 1 month charged: ${rate}%/yr / 12 x ${round2(amount).toLocaleString()}.`,
+    });
+    return { total: interest, finalRate: rate, chunks };
+  }
+
+  let balance = amount;
+  let cursor = start;
+  let rate = getApplicableTier(balance, tiers)?.interestRate ?? fallbackRate;
+  let total = 0;
   let yearNum = 1;
 
-  while (remainingDays > DAYS_PER_YEAR) {
-    const interest = cursorBalance * (rate / 100);
-    const periodEnd = new Date(cursorDate.getTime() + DAYS_PER_YEAR * MS_PER_DAY);
-    const closingBalance = cursorBalance + interest;
+  while (addCalendarYears(cursor, 1).getTime() <= end.getTime()) {
+    const periodEnd = addCalendarYears(cursor, 1);
+    const interest = (balance * rate) / 100;
     chunks.push({
       type: 'year',
-      segmentLabel,
+      segmentLabel: label,
       periodLabel: `Year ${yearNum}`,
-      startDate: isoDate(cursorDate),
+      startDate: isoDate(cursor),
       endDate: isoDate(periodEnd),
-      days: DAYS_PER_YEAR,
+      days: Math.round((periodEnd.getTime() - cursor.getTime()) / MS_PER_DAY),
       rate,
-      openingBalance: round2(cursorBalance),
+      openingBalance: round2(balance),
       interest: round2(interest),
-      closingBalance: round2(closingBalance),
-      note:
-        `Full year at ${rate}%/yr: ${round2(cursorBalance).toLocaleString()} × ${rate}% = ` +
-        `${round2(interest).toLocaleString()} interest, added to principal for Year ${yearNum + 1}.`,
+      closingBalance: round2(balance + interest),
+      note: `Full year at ${rate}%/yr: ${round2(balance).toLocaleString()} x ${rate}% = ${round2(interest).toLocaleString()}, folded into principal for Year ${yearNum + 1}.`,
     });
-    cursorBalance = closingBalance;
-    cursorDate = periodEnd;
-    remainingDays -= DAYS_PER_YEAR;
+    total += interest;
+    balance += interest; // unrounded carry-forward
+    cursor = periodEnd;
+    rate = getApplicableTier(balance, tiers)?.interestRate ?? fallbackRate;
     yearNum += 1;
   }
 
-  const yearPrefix = yearNum > 1 ? `Year ${yearNum}, ` : '';
-  let monthNum = 1;
-  while (remainingDays > 0) {
-    const chunkDays = Math.min(30, remainingDays);
-    const chunkYears = chunkDays / DAYS_PER_YEAR;
-    const closingBalance = cursorBalance * Math.pow(1 + rate / 100, chunkYears);
-    const interest = closingBalance - cursorBalance;
-    const periodEnd = new Date(cursorDate.getTime() + chunkDays * MS_PER_DAY);
+  const { months, days } = calendarMonthsAndDays(cursor, end);
+  if (months > 0 || days > 0) {
+    const monthPortion = (balance * rate) / 100 / 12 * months;
+    const dayPortion = (balance * rate) / 100 / DAYS_PER_YEAR * days;
+    const interest = monthPortion + dayPortion;
+    const yearPrefix = yearNum > 1 ? `Year ${yearNum}, ` : '';
     chunks.push({
       type: 'month',
-      segmentLabel,
-      periodLabel: `${yearPrefix}Month ${monthNum}`,
-      startDate: isoDate(cursorDate),
-      endDate: isoDate(periodEnd),
-      days: Math.round(chunkDays * 100) / 100,
+      segmentLabel: label,
+      periodLabel: `${yearPrefix}${months}M ${days}D remainder`,
+      startDate: isoDate(cursor),
+      endDate: isoDate(end),
+      days: Math.round((end.getTime() - cursor.getTime()) / MS_PER_DAY),
       rate,
-      openingBalance: round2(cursorBalance),
+      openingBalance: round2(balance),
       interest: round2(interest),
-      closingBalance: round2(closingBalance),
-      note: `${Math.round(chunkDays)} day(s) at ${rate}%/yr, compounded on the current balance.`,
+      closingBalance: round2(balance + interest),
+      note: `${months} full month(s) flat at ${rate}%/yr/12, plus ${days} day(s) at ${rate}%/yr/365.`,
     });
-    cursorBalance = closingBalance;
-    cursorDate = periodEnd;
-    remainingDays -= chunkDays;
-    monthNum += 1;
+    total += interest;
   }
 
-  return chunks;
+  return { total, finalRate: rate, chunks };
 }
 
-// Compound-interest calculation, re-evaluating the applicable rate tier
-// after every partial payment reduces the outstanding principal.
+// Real-world interest calculation:
+//  - Gross interest is computed on the full original principal for the
+//    entire loan-date-to-asOfDate span (calendar year/month/day method,
+//    annual-only compounding - see accrueInterest above).
+//  - For each partial payment, the interest that would have accrued on that
+//    paid-off amount from its own payment date to asOfDate is computed the
+//    same way, and subtracted from the gross - the borrower isn't charged
+//    interest on money already returned.
+//  - The final total is rounded UP to the nearest Rs 10 (never down).
 //
 // principal: original loan amount
 // annualRate: rate stored on the loan (used when no tier matches)
@@ -109,57 +170,56 @@ export function calculateCompoundInterest({
   const start = new Date(loanDate);
   const today = new Date(asOfDate);
 
-  let remainingPrincipal = principal;
-  let totalInterest = 0;
-  const breakdown = [];
+  const gross = accrueInterest({
+    amount: principal,
+    startDate: start,
+    endDate: today,
+    tiers,
+    fallbackRate: annualRate,
+    label: `Gross interest on ${principal.toLocaleString()} (full term)`,
+  });
+
+  const breakdown = [...gross.chunks];
+  let offsetTotal = 0;
+  let finalRate = gross.finalRate;
 
   const sortedPayments = [...partialPayments].sort(
     (a, b) => new Date(a.paymentDate) - new Date(b.paymentDate)
   );
 
-  let currentDate = start;
-  let currentRate = getApplicableTier(remainingPrincipal, tiers)?.interestRate ?? annualRate;
-
   for (const payment of sortedPayments) {
-    const paymentDate = new Date(payment.paymentDate);
-    const yearsInPeriod = Math.max(0, (paymentDate - currentDate) / MS_PER_DAY) / DAYS_PER_YEAR;
-
-    const amount = remainingPrincipal * Math.pow(1 + currentRate / 100, yearsInPeriod);
-    totalInterest += amount - remainingPrincipal;
+    const offset = accrueInterest({
+      amount: payment.amount,
+      startDate: new Date(payment.paymentDate),
+      endDate: today,
+      tiers,
+      fallbackRate: annualRate,
+      label: `Less: interest on ${payment.amount.toLocaleString()} paid ${isoDate(payment.paymentDate)}`,
+    });
+    offsetTotal += offset.total;
     breakdown.push(
-      ...splitSegmentIntoChunks({
-        segStart: currentDate,
-        segEnd: paymentDate,
-        openingBalance: remainingPrincipal,
-        rate: currentRate,
-        segmentLabel: `Until payment of ${payment.amount} on ${isoDate(paymentDate)}`,
-      })
+      ...offset.chunks.map((c) => ({
+        ...c,
+        interest: round2(-c.interest),
+        closingBalance: round2(c.openingBalance - (c.interest ?? 0)),
+      }))
     );
-
-    remainingPrincipal = Math.max(0, remainingPrincipal - payment.amount);
-    currentDate = paymentDate;
-    currentRate = getApplicableTier(remainingPrincipal, tiers)?.interestRate ?? annualRate;
   }
 
-  const finalYears = Math.max(0, (today - currentDate) / MS_PER_DAY) / DAYS_PER_YEAR;
-  const finalAmount = remainingPrincipal * Math.pow(1 + currentRate / 100, finalYears);
-  totalInterest += finalAmount - remainingPrincipal;
-  breakdown.push(
-    ...splitSegmentIntoChunks({
-      segStart: currentDate,
-      segEnd: today,
-      openingBalance: remainingPrincipal,
-      rate: currentRate,
-      segmentLabel: sortedPayments.length ? 'Since last payment' : 'Since loan start',
-    })
+  const remainingPrincipal = Math.max(
+    0,
+    principal - sortedPayments.reduce((sum, p) => sum + p.amount, 0)
   );
+
+  const rawInterest = gross.total - offsetTotal;
+  const totalInterest = rawInterest <= 0 ? 0 : ceilTo10(rawInterest);
 
   return {
     principalRemaining: round2(remainingPrincipal),
-    totalInterestAccrued: round2(totalInterest),
+    totalInterestAccrued: totalInterest,
     totalAmountDue: round2(remainingPrincipal + totalInterest),
     daysElapsed: Math.floor((today - start) / MS_PER_DAY),
-    appliedInterestRate: currentRate,
+    appliedInterestRate: finalRate,
     breakdown,
   };
 }
