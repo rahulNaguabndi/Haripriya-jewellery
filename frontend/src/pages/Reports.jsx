@@ -6,7 +6,7 @@ import { formatCurrency, formatDate } from '../utils/formatters.js';
 
 const tabs = [
   { key: 'outstanding-interest', label: 'Outstanding Interest' },
-  { key: 'overdue', label: 'Overdue Loans' },
+  { key: 'overdue', label: 'Due Date Passed (informational)' },
   { key: 'closed', label: 'Closed Loans' },
   { key: 'borrower-summary', label: 'Borrower Summary' },
 ];

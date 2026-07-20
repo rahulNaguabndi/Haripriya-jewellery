@@ -290,8 +290,11 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
             <input type="date" required value={form.loanDate} onChange={(e) => set('loanDate', e.target.value)} />
           </div>
           <div className="field" style={{ flex: 1 }}>
-            <label>Due Date</label>
+            <label>Due Date (informational only)</label>
             <input type="date" value={form.dueDate} onChange={(e) => set('dueDate', e.target.value)} />
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
+              Not enforced - loans stay open past this date. Purely a reminder for admin reference.
+            </div>
           </div>
         </div>
 
