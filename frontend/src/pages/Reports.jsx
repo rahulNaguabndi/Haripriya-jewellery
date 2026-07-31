@@ -2,9 +2,12 @@ import { useEffect, useState } from 'react';
 import { api } from '../services/api.js';
 import DataTable from '../components/common/DataTable.jsx';
 import StatusBadge from '../components/common/StatusBadge.jsx';
+import { TableSkeleton } from '../components/common/Skeleton.jsx';
+import ReportsOverview from '../components/Reports/ReportsOverview.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
 
 const tabs = [
+  { key: 'overview', label: 'Overview' },
   { key: 'outstanding-interest', label: 'Outstanding Interest' },
   { key: 'overdue', label: 'Due Date Passed (informational)' },
   { key: 'closed', label: 'Closed Loans' },
@@ -31,13 +34,15 @@ const borrowerColumns = [
 ];
 
 export default function Reports() {
-  const [tab, setTab] = useState('outstanding-interest');
+  const [tab, setTab] = useState('overview');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (tab === 'overview') return;
     setLoading(true);
+    setError('');
     api
       .get(`/reports/${tab}`)
       .then((res) => setData(res.data.data))
@@ -51,7 +56,7 @@ export default function Reports() {
     <div>
       <div className="font-serif" style={{ fontSize: 26, fontWeight: 600, marginBottom: 20 }}>Reports</div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -69,7 +74,13 @@ export default function Reports() {
       </div>
 
       {error && <div style={{ color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
-      {loading ? <div>Loading…</div> : <DataTable columns={columns} rows={data} emptyMessage="No records found." />}
+      {tab === 'overview' ? (
+        <ReportsOverview />
+      ) : loading ? (
+        <TableSkeleton columns={columns.length} rows={8} />
+      ) : (
+        <DataTable columns={columns} rows={data} emptyMessage="No records found." />
+      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api.js';
 import DataTable from '../components/common/DataTable.jsx';
+import { TableSkeleton } from '../components/common/Skeleton.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
 
 const METAL_TYPES = ['Gold', 'Silver'];
@@ -101,7 +102,14 @@ export default function CoverageReview() {
     },
   ];
 
-  if (loading) return <div>Loading…</div>;
+  if (loading) {
+    return (
+      <div>
+        <div className="font-serif" style={{ fontSize: 26, fontWeight: 600, marginBottom: 20 }}>Coverage Review</div>
+        <TableSkeleton columns={9} rows={10} />
+      </div>
+    );
+  }
   if (error) return <div style={{ color: 'var(--danger)' }}>{error}</div>;
 
   return (

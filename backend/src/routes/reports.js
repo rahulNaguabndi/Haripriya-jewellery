@@ -11,6 +11,10 @@ import {
   getPaymentsReport,
   getOverdueLoans,
   getClosedLoans,
+  getStatusBreakdown,
+  getPaymentsMonthly,
+  getLoansMonthly,
+  getDashboardInsights,
 } from '../controllers/reportController.js';
 
 const router = Router();
@@ -26,5 +30,9 @@ router.get('/outstanding-interest', getOutstandingInterest);
 router.get('/payments', getPaymentsReport);
 router.get('/overdue', getOverdueLoans);
 router.get('/closed', getClosedLoans);
+router.get('/status-breakdown', getStatusBreakdown);
+router.get('/payments-monthly', getPaymentsMonthly);
+router.get('/loans-monthly', getLoansMonthly);
+router.get('/dashboard/insights', getDashboardInsights);
 
 export default router;

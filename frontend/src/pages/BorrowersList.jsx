@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api.js';
 import DataTable from '../components/common/DataTable.jsx';
+import { TableSkeleton } from '../components/common/Skeleton.jsx';
 import Pagination from '../components/common/Pagination.jsx';
 import FilterBar from '../components/common/FilterBar.jsx';
 import BorrowerModal from '../components/Borrowers/BorrowerModal.jsx';
@@ -93,7 +94,7 @@ export default function BorrowersList() {
 
       {error && <div style={{ color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
       {loading ? (
-        <div>Loading…</div>
+        <TableSkeleton columns={columns.length} rows={PAGE_SIZE} />
       ) : (
         <>
           <DataTable columns={columns} rows={borrowers} onRowClick={(row) => navigate(`/borrowers/${row.id}`)} />

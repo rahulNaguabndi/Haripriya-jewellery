@@ -28,12 +28,23 @@ export default function Login() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+        padding: 16,
+        background:
+          'radial-gradient(60% 55% at 50% 0%, var(--gold-soft) 0%, transparent 60%), var(--bg)',
+      }}
+    >
       <ThemeToggle style={{ position: 'absolute', top: 24, right: 24 }} />
       <form
         onSubmit={handleSubmit}
         className="card w-[380px] max-w-[92vw] px-6 py-8 sm:px-9 sm:py-10"
-        style={{ boxShadow: '0 20px 50px -20px rgba(110,30,42,0.18)' }}
+        style={{ boxShadow: 'var(--shadow-lg)' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
           <div

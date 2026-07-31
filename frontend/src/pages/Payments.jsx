@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../services/api.js';
 import DataTable from '../components/common/DataTable.jsx';
+import { TableSkeleton } from '../components/common/Skeleton.jsx';
 import FilterBar from '../components/common/FilterBar.jsx';
 import Pagination from '../components/common/Pagination.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
@@ -66,7 +67,7 @@ export default function Payments() {
       />
 
       {error && <div style={{ color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
-      {loading ? <div>Loading…</div> : (
+      {loading ? <TableSkeleton columns={columns.length} rows={PAGE_SIZE} /> : (
         <>
           <DataTable columns={columns} rows={payments} emptyMessage="No payments found." />
           <Pagination page={page} limit={PAGE_SIZE} total={total} onPageChange={setPage} />

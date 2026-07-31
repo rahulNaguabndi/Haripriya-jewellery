@@ -212,6 +212,161 @@ export async function getClosedLoans(req, res, next) {
   }
 }
 
+// ---------------------------------------------------------------------
+// Chart/analytics endpoints (feed the Reports "Overview" charts and the
+// dashboard insight tiles). All bucketing is done in JS over a single
+// bulk fetch rather than N grouped SQL queries - the dataset (low
+// thousands of rows) is small enough that one round-trip + in-memory
+// grouping is simpler and cheaper than a Postgres function per chart.
+// ---------------------------------------------------------------------
+
+// Loan count by status - drives the status donut on the Reports overview.
+export async function getStatusBreakdown(req, res, next) {
+  try {
+    const { data: loans, error } = await supabase.from('loans').select('status');
+    if (error) throw new ApiError(400, error.message);
+
+    const counts = { active: 0, partial_payment: 0, closed: 0, defaulted: 0 };
+    for (const l of loans || []) {
+      if (counts[l.status] === undefined) counts[l.status] = 0;
+      counts[l.status] += 1;
+    }
+    res.json({ data: counts, total: (loans || []).length });
+  } catch (err) {
+    next(err);
+  }
+}
+
+function monthKey(dateStr) {
+  return String(dateStr).slice(0, 7); // YYYY-MM
+}
+
+// Builds an ordered list of the last `months` YYYY-MM keys ending at the
+// current month, so a month with zero activity still shows as a gap (0)
+// instead of collapsing the axis.
+function lastMonthsAxis(months) {
+  const axis = [];
+  const d = new Date();
+  d.setDate(1);
+  for (let i = months - 1; i >= 0; i--) {
+    const dt = new Date(d.getFullYear(), d.getMonth() - i, 1);
+    axis.push(`${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return axis;
+}
+
+// Payments summed per month for the last N months - the payments trend
+// area chart on the Reports overview.
+export async function getPaymentsMonthly(req, res, next) {
+  try {
+    const months = Math.min(36, Math.max(3, parseInt(req.query.months) || 12));
+    const axis = lastMonthsAxis(months);
+    const since = `${axis[0]}-01`;
+
+    const { data: payments, error } = await supabase
+      .from('payments')
+      .select('amount, payment_date')
+      .eq('is_deleted', false)
+      .gte('payment_date', since);
+    if (error) throw new ApiError(400, error.message);
+
+    const totals = Object.fromEntries(axis.map((m) => [m, 0]));
+    for (const p of payments || []) {
+      const k = monthKey(p.payment_date);
+      if (k in totals) totals[k] += Number(p.amount) || 0;
+    }
+
+    res.json({ data: axis.map((month) => ({ month, total: round2(totals[month]) })) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// New loans disbursed per month (count + principal) for the last N months
+// - the loans-issued bar chart on the Reports overview.
+export async function getLoansMonthly(req, res, next) {
+  try {
+    const months = Math.min(36, Math.max(3, parseInt(req.query.months) || 12));
+    const axis = lastMonthsAxis(months);
+    const since = `${axis[0]}-01`;
+
+    const { data: loans, error } = await supabase
+      .from('loans')
+      .select('loan_amount, loan_date')
+      .gte('loan_date', since);
+    if (error) throw new ApiError(400, error.message);
+
+    const count = Object.fromEntries(axis.map((m) => [m, 0]));
+    const amount = Object.fromEntries(axis.map((m) => [m, 0]));
+    for (const l of loans || []) {
+      const k = monthKey(l.loan_date);
+      if (k in count) {
+        count[k] += 1;
+        amount[k] += Number(l.loan_amount) || 0;
+      }
+    }
+
+    res.json({ data: axis.map((month) => ({ month, count: count[month], amount: round2(amount[month]) })) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Single roll-up powering the dashboard's call-to-action tiles: what
+// changed recently and what needs attention today.
+export async function getDashboardInsights(req, res, next) {
+  try {
+    const today = new Date();
+    const todayIso = today.toISOString().slice(0, 10);
+    const yesterdayIso = new Date(today.getTime() - 86400000).toISOString().slice(0, 10);
+    const oneYearAgoIso = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate())
+      .toISOString()
+      .slice(0, 10);
+    const monthStartIso = `${todayIso.slice(0, 7)}-01`;
+
+    const [
+      newToday,
+      newYesterday,
+      staleLoans,
+      overdue,
+      noticesMonth,
+      noticesTotal,
+    ] = await Promise.all([
+      supabase.from('loans').select('id', { count: 'exact', head: true }).eq('loan_date', todayIso),
+      supabase.from('loans').select('id', { count: 'exact', head: true }).eq('loan_date', yesterdayIso),
+      // Open loans over a year old that have never received a payment.
+      supabase
+        .from('loans')
+        .select('loan_amount')
+        .in('status', ['active', 'partial_payment'])
+        .lte('loan_date', oneYearAgoIso)
+        .eq('total_payment_received', 0),
+      supabase
+        .from('loans')
+        .select('id', { count: 'exact', head: true })
+        .in('status', ['active', 'partial_payment'])
+        .not('due_date', 'is', null)
+        .lt('due_date', todayIso),
+      supabase.from('loan_notices').select('id', { count: 'exact', head: true }).gte('sent_date', monthStartIso),
+      supabase.from('loan_notices').select('id', { count: 'exact', head: true }),
+    ]);
+
+    const staleValue = (staleLoans.data || []).reduce((sum, l) => sum + (Number(l.loan_amount) || 0), 0);
+
+    res.json({
+      newLoansToday: newToday.count || 0,
+      newLoansYesterday: newYesterday.count || 0,
+      staleAwaitingPaymentCount: (staleLoans.data || []).length,
+      staleAwaitingPaymentValue: round2(staleValue),
+      overdueCount: overdue.count || 0,
+      noticesSentThisMonth: noticesMonth.count || 0,
+      noticesSentTotal: noticesTotal.count || 0,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 function round2(n) {
   return Math.round(n * 100) / 100;
 }

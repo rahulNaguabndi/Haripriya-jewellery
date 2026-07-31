@@ -17,12 +17,14 @@ const navItems = [
 
 const navLinkStyle = ({ isActive }) => ({
   padding: '8px 14px',
-  borderRadius: 7,
+  borderRadius: 8,
   fontSize: 13.5,
-  fontWeight: 500,
+  fontWeight: isActive ? 600 : 500,
   textDecoration: 'none',
   color: isActive ? '#F3E9D2' : '#C9B89A',
-  background: isActive ? 'rgba(203,164,92,0.15)' : 'transparent',
+  background: isActive ? 'rgba(203,164,92,0.16)' : 'transparent',
+  boxShadow: isActive ? 'inset 0 -2px 0 var(--gold)' : 'inset 0 -2px 0 transparent',
+  transition: 'color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease',
 });
 
 export default function AppShell({ children }) {
@@ -40,7 +42,8 @@ export default function AppShell({ children }) {
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <div
         style={{
-          background: 'var(--ink)',
+          background: 'color-mix(in srgb, var(--ink) 88%, transparent)',
+          backdropFilter: 'blur(10px)',
           color: '#C9B89A',
           display: 'flex',
           alignItems: 'center',
@@ -50,6 +53,8 @@ export default function AppShell({ children }) {
           position: 'sticky',
           top: 0,
           zIndex: 50,
+          borderBottom: '1px solid rgba(203,164,92,0.18)',
+          boxShadow: '0 1px 0 rgba(0,0,0,0.25)',
         }}
         className="md:px-8"
       >

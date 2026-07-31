@@ -229,3 +229,56 @@ Tiered interest rates live in `interest_config.tiers` (jsonb array of
 `{minAmount, maxAmount, interestRate, description}`), editable by
 `super_admin`/`admin` via Admin Settings; only one row has `is_active = true`
 at a time.
+
+## UI / visual design system
+
+The look is an intentional "luxury jeweler" aesthetic — warm cream/gold
+palette, Cormorant Garamond serif for display/headings, Jost for body. Keep
+that direction; don't introduce a generic SaaS blue/gray look.
+
+- **All shared visual tokens live in `frontend/src/theme.css`** — palette,
+  elevation (`--shadow-sm/md/lg`, warm-tinted), radii (`--radius-sm/-/-lg`),
+  focus ring (`--ring`), motion easing (`--ease`), scrollbar. Component
+  classes (`.card`, `.btn*`, `.badge*`, `.table-wrap`, `.modal-*`, `.skeleton`)
+  are defined here once and reused, not duplicated as inline styles. Prefer
+  adding/extending a token or component class here over hardcoding a value at
+  a call site.
+- **Theming is dual-layered**: `ThemeContext.jsx` sets `data-theme` on `<html>`
+  AND writes the brand palette vars as **inline styles** on the root element
+  (from `GET /api/theme`), with the per-user accent (`--gold`/`--gold-deep`)
+  applied last. So brand-managed palette vars are overridden inline; any *new*
+  token you add only to `theme.css` (e.g. `--gold-soft`, `--surface-2`,
+  shadows, scrollbar) resolves from the CSS `html[data-theme='dark']` block via
+  the attribute — that's why those must be defined in both the light `html{}`
+  and dark `html[data-theme='dark']{}` blocks. Don't assume a dark value takes
+  effect just because the light one does.
+- **Loading states use skeletons, never a bare "Loading…"** — see
+  `components/common/Skeleton.jsx` (`Skeleton`, `StatCardSkeleton`,
+  `TableSkeleton`, `ListSkeleton`) and the `.skeleton` shimmer in `theme.css`.
+  `StatCard`/`InsightCard` take a `loading` prop.
+- **Dashboard** (`pages/Dashboard.jsx`) has a "Needs attention" band of
+  `InsightCard` CTA tiles (gold rate, new loans today, under-collateralized
+  count, >1yr-no-payment, due-date-passed, notices due), each fetched from its
+  own endpoint in parallel so one slow query never blocks the rest. Tile data
+  comes from `GET /api/reports/dashboard/insights` (+ `/rates`, `/coverage`,
+  `/notices/due`).
+- **Charts** use `recharts` (`components/Reports/ReportsOverview.jsx`, the
+  Reports "Overview" tab). Chart colors are read from live CSS vars via
+  `utils/chartTheme.js`'s `useChartColors()` (keyed on theme+accent) so charts
+  stay in lockstep with light/dark and the accent. Backend chart feeds:
+  `GET /api/reports/status-breakdown`, `/payments-monthly`, `/loans-monthly`
+  (in-memory bucketing over one bulk fetch, not grouped SQL).
+- Respect `prefers-reduced-motion` (already handled globally in `theme.css`).
+  Currency/counts use `.tabular` (tabular-nums) so columns align.
+
+## Owner working preferences (Rahul)
+
+- **Commit messages: no `Co-Authored-By` trailer.** (Overrides any default
+  co-author line.)
+- **Never auto-fill real credentials on the deployed site** — ask first, even
+  though doing so on localhost during dev is fine.
+- **Two GitHub identities**: work account is the git default; personal work
+  uses the `github-personal` alias. Confirm which identity a new repo should
+  use rather than assuming.
+- Prefers visual/at-a-glance UX (charts, insight tiles, skeletons) over raw
+  tables where a summary view is possible.

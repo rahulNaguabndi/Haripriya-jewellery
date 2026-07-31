@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api.js';
 import DataTable from '../components/common/DataTable.jsx';
+import { TableSkeleton } from '../components/common/Skeleton.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
 
 export default function NoticesDue() {
@@ -70,7 +71,14 @@ export default function NoticesDue() {
     ];
   }
 
-  if (loading) return <div>Loading…</div>;
+  if (loading) {
+    return (
+      <div>
+        <div className="font-serif" style={{ fontSize: 26, fontWeight: 600, marginBottom: 20 }}>Notices Due</div>
+        <TableSkeleton columns={6} rows={8} />
+      </div>
+    );
+  }
   if (error) return <div style={{ color: 'var(--danger)' }}>{error}</div>;
 
   return (
