@@ -475,3 +475,26 @@ create policy "authenticated read loan_items" on public.loan_items
 
 -- No insert/update/delete policies are defined for the anon/authenticated
 -- roles: all writes go through the backend using the service_role key.
+
+-- ---------------------------------------------------------------------
+-- Bullion price history
+-- Daily gold/silver spot prices scraped from public Indian bullion sites
+-- by the `scrape-prices` GitHub Action (see scripts/ + .github/workflows).
+-- All prices normalized to INR per gram so the sources are comparable.
+-- ---------------------------------------------------------------------
+create table if not exists public.price_snapshots (
+  id bigint generated always as identity primary key,
+  recorded_at timestamptz not null default now(),
+  source text not null,      -- 'bullions' | 'goldmeter' | 'allindiabullion'
+  metal text not null,       -- 'gold' | 'silver'
+  purity text not null,      -- '24k' | '22k' | '999'
+  price_inr numeric not null,-- per gram
+  unit text not null default 'gram'
+);
+create index if not exists idx_price_snapshots_recorded on public.price_snapshots(recorded_at);
+create index if not exists idx_price_snapshots_lookup on public.price_snapshots(metal, purity, recorded_at);
+
+alter table public.price_snapshots enable row level security;
+drop policy if exists "authenticated read price_snapshots" on public.price_snapshots;
+create policy "authenticated read price_snapshots" on public.price_snapshots
+  for select using (auth.role() = 'authenticated');
