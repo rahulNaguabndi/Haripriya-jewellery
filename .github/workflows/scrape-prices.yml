@@ -1,0 +1,58 @@
+name: Scrape bullion prices
+
+# Records live gold/silver INR prices from three Indian bullion sites into
+# Supabase, once daily. GitHub cron is UTC-only and can drift 5-20 min or
+# occasionally skip a run — fine for a daily snapshot.
+on:
+  schedule:
+    - cron: "30 6 * * *" # 06:30 UTC = 12:00 IST
+  workflow_dispatch: {} # manual "Run workflow" button for testing
+
+permissions:
+  contents: read
+
+jobs:
+  # One isolated job per source. fail-fast: false so a broken parser on one
+  # site fails only its own job; the others still upload their snapshot.
+  scrape:
+    strategy:
+      fail-fast: false
+      matrix:
+        source: [bullions, goldmeter, allindiabullion]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r scripts/requirements.txt
+      - name: Scrape ${{ matrix.source }}
+        run: python scripts/scrape_source.py ${{ matrix.source }} --out snapshots/${{ matrix.source }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-${{ matrix.source }}
+          path: snapshots/${{ matrix.source }}.json
+          retention-days: 7
+
+  # Consolidate whatever succeeded, then store. Runs even if some scrape jobs
+  # failed (if: always()); store_snapshots.py exits 2 only if ALL sources failed.
+  store:
+    needs: scrape
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r scripts/requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          path: snapshots
+          pattern: snapshot-*
+          merge-multiple: true
+      - name: Post rates to backend
+        env:
+          PRICE_API_URL: ${{ secrets.PRICE_API_URL }}
+          PRICE_INGEST_KEY: ${{ secrets.PRICE_INGEST_KEY }}
+        run: python scripts/store_snapshots.py snapshots

@@ -13,6 +13,7 @@ import rateRoutes from './routes/rates.js';
 import coverageRoutes from './routes/coverage.js';
 import lockerRoutes from './routes/lockers.js';
 import boxRoutes from './routes/boxes.js';
+import priceRoutes from './routes/prices.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { getBrandTheme } from './controllers/adminController.js';
 
@@ -43,6 +44,7 @@ app.use('/api/rates', rateRoutes);
 app.use('/api/coverage', coverageRoutes);
 app.use('/api/lockers', lockerRoutes);
 app.use('/api/boxes', boxRoutes);
+app.use('/api/prices', priceRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
