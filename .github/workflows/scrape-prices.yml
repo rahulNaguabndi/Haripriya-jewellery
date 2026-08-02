@@ -1,11 +1,12 @@
 name: Scrape bullion prices
 
 # Records live gold/silver INR prices from three Indian bullion sites into
-# Supabase, once daily. GitHub cron is UTC-only and can drift 5-20 min or
-# occasionally skip a run — fine for a daily snapshot.
+# Supabase, every 3 hours (8x/day) to capture intraday fluctuation. GitHub
+# cron is UTC-only, best-effort (can drift or skip under load); the odd :17
+# minute avoids the heavily-contended :00/:30 ticks that get dropped most.
 on:
   schedule:
-    - cron: "30 6 * * *" # 06:30 UTC = 12:00 IST
+    - cron: "17 */3 * * *" # 00:17,03:17,06:17,09:17,12:17,15:17,18:17,21:17 UTC
   workflow_dispatch: {} # manual "Run workflow" button for testing
 
 permissions:

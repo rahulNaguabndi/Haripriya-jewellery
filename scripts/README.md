@@ -17,9 +17,11 @@ all three lets you compare drift over time.
 
 ## How it runs
 
-`.github/workflows/scrape-prices.yml`, daily at `30 6 * * *` UTC = **12:00 IST**
-(GitHub cron is UTC-only and may drift a few minutes). Also has a manual
-**Run workflow** button (`workflow_dispatch`).
+`.github/workflows/scrape-prices.yml`, **every 3 hours** (`17 */3 * * *` UTC =
+8 runs/day) to capture intraday price movement. GitHub cron is UTC-only and
+best-effort (may drift or skip under load); the odd :17 minute dodges the
+contended :00/:30 ticks. Also has a manual **Run workflow** button
+(`workflow_dispatch`).
 
 - One **scrape** job per source, in parallel (`fail-fast: false`) — a broken
   parser on one site fails only its own job.
