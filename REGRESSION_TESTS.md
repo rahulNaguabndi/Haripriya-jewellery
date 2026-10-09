@@ -202,6 +202,29 @@ Admin Settings → Appearance card.
 | THEME-4 | Preference follows the user across sessions | Set an accent, sign out, sign back in (same or different browser) | On login, `ThemeProvider` fetches `/auth/me` and applies the saved `{mode, accent}`, overriding whatever was in `localStorage` |
 | THEME-5 | Graceful degradation without migration | With the migration NOT applied, toggle mode/accent | UI still applies the change live (localStorage-backed); the failed save is swallowed silently — no user-facing crash, just no cross-session persistence yet |
 
+## 10e. Accounts, storage view, demographics, HUID, messaging, pledge form, mobile
+
+> **Requires** `db/migrations/2026-10-09_accounts_storage_messaging_huid.sql` to
+> have been run in the Supabase SQL editor (borrower village/mandal/district,
+> loan_items HUID columns, lockers.box_capacity, business_profile, message_log).
+> Before that, these screens fail with Postgrest "could not find column" errors —
+> the expected pre-migration state, not a new bug.
+
+| ID | Scenario | Steps | Expected result |
+|----|----------|-------|------------------|
+| ACC-1 | Ledger by FY | Accounts → pick an FY | 4 stat tiles (disbursed, interest collected, payments, outstanding); Loans/Transactions tabs; All/Gold/Silver/Mixed filters change the tiles and rows |
+| ACC-2 | Excel export | Click **Export to Excel** | `.xlsx` downloads with sheets Summary, All loans, Gold, Silver, Mixed, Transactions; totals row per sheet; dates/currency formatted |
+| ACC-3 | Staff blocked | As `staff`, open Accounts | 403 "Insufficient permissions" shown, no data |
+| STO-1 | Locker → box → packets | Storage → tap a locker → tap a box | Box grid (plus dashed empty slots up to the locker's capacity); box contents table lists only open packets in the box's range and metal; URL carries `?locker=&box=` and Back walks up a level |
+| STO-2 | Locate packet | Enter a packet number → Locate | Jumps to that locker + box and opens it |
+| DEM-1 | Drill-down | Reports → Demographics → tap a district bar, then a mandal | Chart + table drill district → mandal → village; breadcrumb returns up; borrowers without a district appear under "Not recorded" |
+| HUID-1 | Validation + duplicate warning | New loan → item HUID `ab12c` then `AB12CD` used on another loan | <6 chars shows a hint and blocks save; duplicate shows a red "already on LOAN-…" warning |
+| HUID-2 | Record verification | Loan detail → click the HUID chip → Mark verified with a note | Chip turns green "verified"; editing the loan keeps the verification |
+| MSG-1 | Send without keys | Loan detail → Message → Send notice | Result shows "Logged (provider not set up)"; a `message_log` row with status `not_configured`; nothing delivered |
+| MSG-2 | Bulk from Notices Due | Select rows → Message selected | Preview lists each borrower; missing/invalid phone flagged and skipped |
+| PRN-1 | Save & print | New loan → **Save & print pledge form** | Lands on `/loans/:id/print`, print dialog opens; 2 copies (office/customer), each fits one A4 page; Aadhaar masked to last 4 |
+| MOB-1 | Phone layout | 375px wide, visit every page | No horizontal page scroll; tables reflow into label/value cards; filters collapse behind "Filters"; nav collapses to ☰ below 1280px |
+
 ## 11. Regression run report format
 
 When asked to "run regression," produce a summary table: ID, Pass/Fail, one-line

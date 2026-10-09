@@ -1,0 +1,40 @@
+name: Repo keepalive
+
+# GitHub automatically disables scheduled workflows (keep-alive.yml,
+# scrape-prices.yml) in a repo with no activity for 60 days. This pushes an
+# empty commit once a month so the repo never goes quiet.
+#
+# Auth: the built-in GITHUB_TOKEN with `contents: write` is enough to push -
+# no `gh auth login`, PAT or extra secret needed. (If main ever gets branch
+# protection that blocks direct pushes, this job will fail; allow
+# github-actions[bot] to bypass, or point it at a PAT.)
+#
+# "[skip render]" stops Render auto-deploying the backend for a no-op
+# commit. Vercel will still rebuild the frontend unless an Ignored Build
+# Step is configured there - harmless, just a wasted build.
+
+on:
+  schedule:
+    - cron: "23 4 1 * *" # 04:23 UTC on the 1st of each month (off-peak minute; :00 slots get dropped under load)
+  workflow_dispatch: {} # manual "Run workflow" button for testing
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repo-keepalive
+  cancel-in-progress: false
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Push empty keepalive commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "chore: keepalive $(date -u +%Y-%m-%d) [skip ci] [skip render]"
+          # Retry once on a race with a concurrent push.
+          git push || (git pull --rebase && git push)

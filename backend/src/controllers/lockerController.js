@@ -20,15 +20,31 @@ function validateMetalTypes(metalTypes) {
   }
 }
 
+// box_capacity is optional (null = unknown); when set, the visual locker
+// view draws that many slots so empty space in the cabinet is visible.
+function validateCapacity(boxCapacity) {
+  if (boxCapacity == null) return;
+  if (!Number.isInteger(boxCapacity) || boxCapacity < 1 || boxCapacity > 1000) {
+    throw new ApiError(400, 'boxCapacity must be a whole number between 1 and 1000');
+  }
+}
+
 export async function createLocker(req, res, next) {
   try {
     requireFields(req.body, ['name', 'metalTypes']);
-    const { name, metalTypes, displayOrder } = req.body;
+    const { name, metalTypes, displayOrder, boxCapacity } = req.body;
     validateMetalTypes(metalTypes);
+    validateCapacity(boxCapacity);
 
     const { data, error } = await supabase
       .from('lockers')
-      .insert({ name, metal_types: metalTypes, display_order: displayOrder ?? 0, updated_by: req.user.id })
+      .insert({
+        name,
+        metal_types: metalTypes,
+        display_order: displayOrder ?? 0,
+        box_capacity: boxCapacity ?? null,
+        updated_by: req.user.id,
+      })
       .select()
       .single();
     if (error) throw new ApiError(400, error.message);
@@ -40,13 +56,15 @@ export async function createLocker(req, res, next) {
 
 export async function updateLocker(req, res, next) {
   try {
-    const { name, metalTypes, displayOrder } = req.body;
+    const { name, metalTypes, displayOrder, boxCapacity } = req.body;
     if (metalTypes !== undefined) validateMetalTypes(metalTypes);
+    validateCapacity(boxCapacity);
 
     const update = { updated_at: new Date().toISOString(), updated_by: req.user.id };
     if (name !== undefined) update.name = name;
     if (metalTypes !== undefined) update.metal_types = metalTypes;
     if (displayOrder !== undefined) update.display_order = displayOrder;
+    if (boxCapacity !== undefined) update.box_capacity = boxCapacity;
 
     const { data, error } = await supabase.from('lockers').update(update).eq('id', req.params.id).select().maybeSingle();
     if (error) throw new ApiError(400, error.message);

@@ -8,7 +8,7 @@ export default function DataTable({ columns, rows, emptyMessage, onRowClick }) {
   }
 
   return (
-    <div className="card table-wrap">
+    <div className="card table-wrap table-stack">
       <table>
         <thead>
           <tr>
@@ -25,7 +25,7 @@ export default function DataTable({ columns, rows, emptyMessage, onRowClick }) {
               style={onRowClick ? { cursor: 'pointer' } : undefined}
             >
               {columns.map((col) => (
-                <td key={col.key}>{col.render ? col.render(row) : row[col.key]}</td>
+                <td key={col.key} data-label={col.label}>{col.render ? col.render(row) : row[col.key]}</td>
               ))}
             </tr>
           ))}

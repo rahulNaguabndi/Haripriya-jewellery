@@ -43,22 +43,49 @@ function validateItems(items) {
     if (!item.itemType || !item.metalType) {
       throw new ApiError(400, 'Each item needs itemType and metalType');
     }
+    if (item.huid && !HUID_PATTERN.test(normalizeHuid(item.huid))) {
+      throw new ApiError(400, `HUID "${item.huid}" is invalid - it must be exactly 6 letters/digits.`);
+    }
   }
 }
 
+// HUID = BIS Hallmark Unique ID, a 6-character alphanumeric code laser-
+// marked on hallmarked articles. Stored uppercase without spaces.
+const HUID_PATTERN = /^[A-Z0-9]{6}$/;
+function normalizeHuid(huid) {
+  return String(huid || '').replace(/\s+/g, '').toUpperCase();
+}
+
 async function replaceLoanItems(loanId, items) {
+  // Items are replaced wholesale on edit, so carry each HUID's recorded
+  // BIS verification over to the re-inserted row that keeps the same HUID.
+  const { data: existing, error: existingError } = await supabase
+    .from('loan_items')
+    .select('huid, huid_verified_at, huid_verified_by, huid_verification_note')
+    .eq('loan_id', loanId);
+  if (existingError) throw new ApiError(400, existingError.message);
+  const verificationByHuid = new Map((existing || []).filter((i) => i.huid).map((i) => [i.huid, i]));
+
   const { error: deleteError } = await supabase.from('loan_items').delete().eq('loan_id', loanId);
   if (deleteError) throw new ApiError(400, deleteError.message);
 
-  const rows = items.map((item) => ({
-    loan_id: loanId,
-    item_type: item.itemType,
-    metal_type: item.metalType,
-    gross_weight: item.grossWeight === '' || item.grossWeight == null ? null : Number(item.grossWeight),
-    net_weight: item.netWeight === '' || item.netWeight == null ? null : Number(item.netWeight),
-    purity: item.purity || null,
-    description: item.description || null,
-  }));
+  const rows = items.map((item) => {
+    const huid = normalizeHuid(item.huid) || null;
+    const previous = huid ? verificationByHuid.get(huid) : null;
+    return {
+      loan_id: loanId,
+      item_type: item.itemType,
+      metal_type: item.metalType,
+      gross_weight: item.grossWeight === '' || item.grossWeight == null ? null : Number(item.grossWeight),
+      net_weight: item.netWeight === '' || item.netWeight == null ? null : Number(item.netWeight),
+      purity: item.purity || null,
+      description: item.description || null,
+      huid,
+      huid_verified_at: previous?.huid_verified_at ?? null,
+      huid_verified_by: previous?.huid_verified_by ?? null,
+      huid_verification_note: previous?.huid_verification_note ?? null,
+    };
+  });
 
   const { data, error } = await supabase.from('loan_items').insert(rows).select();
   if (error) throw new ApiError(400, error.message);
@@ -150,7 +177,9 @@ export async function getLoan(req, res, next) {
   try {
     const { data: loan, error } = await supabase
       .from('loans')
-      .select('*, borrowers(id, name, phone, email), loan_items(*)')
+      .select(
+        '*, borrowers(id, name, phone, email, address, village, mandal, district, city, state, pincode, aadhar_or_id, care_of), loan_items(*)'
+      )
       .eq('id', req.params.id)
       .maybeSingle();
 
@@ -276,6 +305,7 @@ export async function rolloverLoan(req, res, next) {
             netWeight: it.net_weight,
             purity: it.purity,
             description: it.description,
+            huid: it.huid,
           }));
     validateItems(newItems);
 
@@ -399,4 +429,75 @@ export async function getLoanInterestSummary(req, res, next) {
 
 function round2(n) {
   return Math.round(n * 100) / 100;
+}
+
+// GET /api/loans/huid-check?huid=XXXXXX[&excludeLoanId=]
+// Other loans already carrying this HUID. The same hallmarked piece showing
+// up on two open loans is a red flag (double-pledge or copied HUID), so the
+// loan form warns about it as soon as a HUID is typed.
+export async function checkHuid(req, res, next) {
+  try {
+    const huid = normalizeHuid(req.query.huid);
+    if (!HUID_PATTERN.test(huid)) throw new ApiError(400, 'HUID must be exactly 6 letters/digits.');
+
+    let query = supabase
+      .from('loan_items')
+      .select('id, item_type, metal_type, loans!inner(id, loan_number, status, loan_date, borrowers(name))')
+      .eq('huid', huid);
+    if (req.query.excludeLoanId) query = query.neq('loan_id', req.query.excludeLoanId);
+    const { data, error } = await query;
+    if (error) throw new ApiError(400, error.message);
+
+    res.json({
+      huid,
+      matches: (data || []).map((row) => ({
+        loanId: row.loans.id,
+        loanNumber: row.loans.loan_number,
+        status: row.loans.status,
+        loanDate: row.loans.loan_date,
+        borrowerName: row.loans.borrowers?.name || null,
+        itemType: row.item_type,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /api/loans/:id/items/:itemId/huid-verification
+// Records the outcome of a staff check in the BIS CARE app ("Verify HUID").
+// BIS publishes no lookup API, so this is a recorded manual verification:
+// { verified: true, note: "22K, AHC xyz, matches" } or { verified: false }
+// to clear it.
+export async function setHuidVerification(req, res, next) {
+  try {
+    const { verified, note } = req.body;
+    if (typeof verified !== 'boolean') throw new ApiError(400, 'verified must be true or false');
+
+    const { data: item, error: itemError } = await supabase
+      .from('loan_items')
+      .select('id, huid')
+      .eq('id', req.params.itemId)
+      .eq('loan_id', req.params.id)
+      .maybeSingle();
+    if (itemError) throw new ApiError(400, itemError.message);
+    if (!item) throw new ApiError(404, 'Item not found on this loan');
+    if (verified && !item.huid) throw new ApiError(400, 'This item has no HUID to verify.');
+
+    const { data, error } = await supabase
+      .from('loan_items')
+      .update({
+        huid_verified_at: verified ? new Date().toISOString() : null,
+        huid_verified_by: verified ? req.user.id : null,
+        huid_verification_note: verified ? note || null : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', item.id)
+      .select()
+      .single();
+    if (error) throw new ApiError(400, error.message);
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
 }

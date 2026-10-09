@@ -13,16 +13,19 @@ import NoticesDue from './pages/NoticesDue.jsx';
 import CoverageReview from './pages/CoverageReview.jsx';
 import Storage from './pages/Storage.jsx';
 import Reports from './pages/Reports.jsx';
+import Accounts from './pages/Accounts.jsx';
+import PledgeForm from './pages/PledgeForm.jsx';
 import AdminSettings from './pages/AdminSettings.jsx';
 
-function ProtectedRoute({ children }) {
+// bare: render without the nav shell (used by the printable pledge form).
+function ProtectedRoute({ children, bare }) {
   const { session, loading } = useAuth();
   const location = useLocation();
 
   if (loading) return <div style={{ padding: 40 }}>Loading…</div>;
   if (!session) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
 
-  return <AppShell>{children}</AppShell>;
+  return bare ? children : <AppShell>{children}</AppShell>;
 }
 
 export default function App() {
@@ -34,10 +37,12 @@ export default function App() {
       <Route path="/borrowers/:id" element={<ProtectedRoute><BorrowerDetail /></ProtectedRoute>} />
       <Route path="/loans" element={<ProtectedRoute><LoansList /></ProtectedRoute>} />
       <Route path="/loans/:id" element={<ProtectedRoute><LoanDetail /></ProtectedRoute>} />
+      <Route path="/loans/:id/print" element={<ProtectedRoute bare><PledgeForm /></ProtectedRoute>} />
       <Route path="/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
       <Route path="/notices" element={<ProtectedRoute><NoticesDue /></ProtectedRoute>} />
       <Route path="/coverage" element={<ProtectedRoute><CoverageReview /></ProtectedRoute>} />
       <Route path="/storage" element={<ProtectedRoute><Storage /></ProtectedRoute>} />
+      <Route path="/accounts" element={<ProtectedRoute><Accounts /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
       <Route path="/admin/settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

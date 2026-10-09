@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Modal from '../common/Modal.jsx';
 import BorrowerModal from '../Borrowers/BorrowerModal.jsx';
 import { api } from '../../services/api.js';
@@ -7,7 +8,10 @@ const itemTypes = ['Ring', 'Necklace', 'Bracelet', 'Earrings', 'Bangle', 'Chain'
 const metalTypes = ['Gold', 'Silver'];
 const goldKarats = ['24k', '22k', '18k', '14k'];
 
-const emptyItem = { itemType: 'Ring', metalType: 'Gold', grossWeight: '', netWeight: '', purity: '', description: '' };
+// BIS Hallmark Unique ID: exactly 6 letters/digits, laser-marked on the article.
+const HUID_RE = /^[A-Z0-9]{6}$/;
+
+const emptyItem = { itemType: 'Ring', metalType: 'Gold', grossWeight: '', netWeight: '', purity: '', description: '', huid: '' };
 
 const empty = {
   borrowerId: '',
@@ -27,6 +31,7 @@ function itemFromRow(row) {
     netWeight: row.net_weight ?? '',
     purity: row.purity ?? '',
     description: row.description ?? '',
+    huid: row.huid ?? '',
   };
 }
 
@@ -51,6 +56,23 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
   const [borrowerQuery, setBorrowerQuery] = useState(loan?.borrowers?.name || '');
   const [borrowerOptions, setBorrowerOptions] = useState([]);
   const [showBorrowerDropdown, setShowBorrowerDropdown] = useState(false);
+  const [huidMatches, setHuidMatches] = useState({});
+  const navigate = useNavigate();
+
+  // Same hallmarked piece already on another loan = possible double-pledge.
+  async function checkHuid(index, huid) {
+    const clean = (huid || '').replace(/\s+/g, '').toUpperCase();
+    if (!HUID_RE.test(clean)) {
+      setHuidMatches((m) => ({ ...m, [index]: null }));
+      return;
+    }
+    try {
+      const res = await api.get('/loans/huid-check', { params: { huid: clean, excludeLoanId: loan?.id } });
+      setHuidMatches((m) => ({ ...m, [index]: res.data.matches }));
+    } catch {
+      setHuidMatches((m) => ({ ...m, [index]: null }));
+    }
+  }
 
   function searchBorrowers(query) {
     const request = query
@@ -93,6 +115,12 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    const printAfter = e.nativeEvent?.submitter?.dataset?.print === 'true';
+    const badHuid = form.items.find((it) => it.huid && !HUID_RE.test(it.huid));
+    if (badHuid) {
+      setError(`HUID "${badHuid.huid}" must be exactly 6 letters/digits (or left blank).`);
+      return;
+    }
     if (!loan && !borrowerId && !form.borrowerId) {
       setError('Select a borrower from the dropdown list.');
       return;
@@ -109,6 +137,7 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
           netWeight: it.netWeight === '' ? null : Number(it.netWeight),
           purity: it.purity || null,
           description: it.description || null,
+          huid: it.huid || null,
         })),
         loanAmount: Number(form.loanAmount),
         loanDate: form.loanDate,
@@ -116,12 +145,12 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
         interestRate: form.interestRate === '' ? undefined : Number(form.interestRate),
         cardGiven: form.cardGiven,
       };
-      if (loan) {
-        await api.put(`/loans/${loan.id}`, payload);
-      } else {
-        await api.post('/loans', payload);
+      const saved = loan ? await api.put(`/loans/${loan.id}`, payload) : await api.post('/loans', payload);
+      if (printAfter) {
+        navigate(`/loans/${saved.data.id}/print?autoprint=1`);
+        return;
       }
-      onSaved();
+      onSaved(saved.data);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -196,14 +225,14 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
         <label>Pledged Items *</label>
         {form.items.map((item, i) => (
           <div key={i} className="card" style={{ padding: 12, marginBottom: 10, background: 'var(--hover)' }}>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <div className="field" style={{ flex: 1, marginBottom: 8 }}>
+            <div className="form-row">
+              <div className="field" style={{ marginBottom: 8 }}>
                 <label style={{ fontSize: 11.5 }}>Item Type *</label>
                 <select required value={item.itemType} onChange={(e) => updateItem(i, 'itemType', e.target.value)}>
                   {itemTypes.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
-              <div className="field" style={{ flex: 1, marginBottom: 8 }}>
+              <div className="field" style={{ marginBottom: 8 }}>
                 <label style={{ fontSize: 11.5 }}>Metal Type *</label>
                 <select
                   required
@@ -217,16 +246,16 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
                 </select>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <div className="field" style={{ flex: 1, marginBottom: 8 }}>
+            <div className="form-row">
+              <div className="field" style={{ marginBottom: 8 }}>
                 <label style={{ fontSize: 11.5 }}>Gross Weight (g)</label>
                 <input type="number" step="0.01" value={item.grossWeight} onChange={(e) => updateItem(i, 'grossWeight', e.target.value)} />
               </div>
-              <div className="field" style={{ flex: 1, marginBottom: 8 }}>
+              <div className="field" style={{ marginBottom: 8 }}>
                 <label style={{ fontSize: 11.5 }}>Net Weight (g, excl. stones)</label>
                 <input type="number" step="0.01" value={item.netWeight} onChange={(e) => updateItem(i, 'netWeight', e.target.value)} />
               </div>
-              <div className="field" style={{ flex: 1, marginBottom: 8 }}>
+              <div className="field" style={{ marginBottom: 8 }}>
                 <label style={{ fontSize: 11.5 }}>Purity</label>
                 {item.metalType === 'Gold' ? (
                   <select value={item.purity} onChange={(e) => updateItem(i, 'purity', e.target.value)}>
@@ -246,10 +275,33 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
                 )}
               </div>
             </div>
-            <div className="field" style={{ marginBottom: 8 }}>
-              <label style={{ fontSize: 11.5 }}>Description</label>
-              <input value={item.description} onChange={(e) => updateItem(i, 'description', e.target.value)} />
+            <div className="form-row">
+              <div className="field" style={{ marginBottom: 8, flexGrow: 2 }}>
+                <label style={{ fontSize: 11.5 }}>Description</label>
+                <input value={item.description} onChange={(e) => updateItem(i, 'description', e.target.value)} />
+              </div>
+              <div className="field" style={{ marginBottom: 8 }}>
+                <label style={{ fontSize: 11.5 }}>HUID (if hallmarked)</label>
+                <input
+                  value={item.huid}
+                  maxLength={6}
+                  placeholder="e.g. AB12CD"
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  style={{ fontFamily: 'ui-monospace, monospace', letterSpacing: '0.12em', textTransform: 'uppercase' }}
+                  onChange={(e) => updateItem(i, 'huid', e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase())}
+                  onBlur={(e) => checkHuid(i, e.target.value)}
+                />
+              </div>
             </div>
+            {item.huid && item.huid.length !== 6 && (
+              <div style={{ fontSize: 11.5, color: 'var(--warning)', marginBottom: 8 }}>HUID is 6 characters ({item.huid.length} entered).</div>
+            )}
+            {huidMatches[i]?.length > 0 && (
+              <div style={{ fontSize: 12, color: 'var(--danger)', background: 'var(--danger-soft)', borderRadius: 8, padding: '8px 10px', marginBottom: 8 }}>
+                This HUID is already on {huidMatches[i].map((m) => `${m.loanNumber} (${m.borrowerName || 'unknown'}, ${m.status})`).join('; ')}. Check for a double pledge.
+              </div>
+            )}
             {form.items.length > 1 && (
               <button type="button" className="btn btn-danger" onClick={() => removeItem(i)}>Remove Item</button>
             )}
@@ -267,12 +319,12 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10 }}>
-          <div className="field" style={{ flex: 1 }}>
+        <div className="form-row">
+          <div className="field">
             <label>Loan Amount (₹) *</label>
             <input type="number" step="0.01" required value={form.loanAmount} onChange={(e) => set('loanAmount', e.target.value)} />
           </div>
-          <div className="field" style={{ flex: 1 }}>
+          <div className="field">
             <label>Interest Rate (% / yr)</label>
             <input
               type="number"
@@ -284,12 +336,12 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10 }}>
-          <div className="field" style={{ flex: 1 }}>
+        <div className="form-row">
+          <div className="field">
             <label>Loan Date *</label>
             <input type="date" required value={form.loanDate} onChange={(e) => set('loanDate', e.target.value)} />
           </div>
-          <div className="field" style={{ flex: 1 }}>
+          <div className="field">
             <label>Due Date (informational only)</label>
             <input type="date" value={form.dueDate} onChange={(e) => set('dueDate', e.target.value)} />
             <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
@@ -315,10 +367,13 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
 
         {error && <div style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 10 }}>{error}</div>}
 
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 6 }}>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: 6 }}>
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn btn-primary" disabled={saving}>
+          <button type="submit" className="btn btn-secondary" disabled={saving} data-print="false">
             {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={saving} data-print="true">
+            Save &amp; print pledge form
           </button>
         </div>
       </form>

@@ -14,6 +14,9 @@ import coverageRoutes from './routes/coverage.js';
 import lockerRoutes from './routes/lockers.js';
 import boxRoutes from './routes/boxes.js';
 import priceRoutes from './routes/prices.js';
+import accountRoutes from './routes/accounts.js';
+import messageRoutes from './routes/messages.js';
+import businessProfileRoutes from './routes/businessProfile.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { getBrandTheme } from './controllers/adminController.js';
 
@@ -45,6 +48,9 @@ app.use('/api/coverage', coverageRoutes);
 app.use('/api/lockers', lockerRoutes);
 app.use('/api/boxes', boxRoutes);
 app.use('/api/prices', priceRoutes);
+app.use('/api/accounts', accountRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/business-profile', businessProfileRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

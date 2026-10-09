@@ -8,7 +8,7 @@ export async function createBorrower(req, res, next) {
   try {
     requireFields(req.body, ['name']);
 
-    const { name, phone, email, address, city, state, pincode, aadharOrId, careOf } = req.body;
+    const { name, phone, email, address, village, mandal, district, city, state, pincode, aadharOrId, careOf } = req.body;
 
     const { data, error } = await supabase
       .from('borrowers')
@@ -17,6 +17,9 @@ export async function createBorrower(req, res, next) {
         phone,
         email,
         address,
+        village,
+        mandal,
+        district,
         city,
         state,
         pincode,
@@ -41,7 +44,7 @@ export async function createBorrower(req, res, next) {
 // back as one row per loan. `q`, when given, OR-matches across several
 // borrower text columns.
 function buildBorrowerQuery(params) {
-  const { q, city, minLoanAmount, maxLoanAmount, loanDateFrom, loanDateTo } = params;
+  const { q, city, district, village, minLoanAmount, maxLoanAmount, loanDateFrom, loanDateTo } = params;
   const needsLoanJoin = minLoanAmount || maxLoanAmount || loanDateFrom || loanDateTo;
 
   let query = supabase
@@ -50,10 +53,12 @@ function buildBorrowerQuery(params) {
     .eq('is_deleted', false);
 
   if (q) {
-    const searchFields = ['name', 'phone', 'email', 'care_of', 'city', 'aadhar_or_id'];
+    const searchFields = ['name', 'phone', 'email', 'care_of', 'city', 'village', 'mandal', 'district', 'aadhar_or_id'];
     query = query.or(searchFields.map((field) => `${field}.ilike.%${q}%`).join(','));
   }
   if (city) query = query.ilike('city', `%${city}%`);
+  if (district) query = query.ilike('district', `%${district}%`);
+  if (village) query = query.ilike('village', `%${village}%`);
   if (needsLoanJoin) {
     if (minLoanAmount) query = query.gte('loans.loan_amount', Number(minLoanAmount));
     if (maxLoanAmount) query = query.lte('loans.loan_amount', Number(maxLoanAmount));
@@ -168,7 +173,7 @@ export async function getBorrower(req, res, next) {
 
 export async function updateBorrower(req, res, next) {
   try {
-    const { name, phone, email, address, city, state, pincode, aadharOrId, careOf } = req.body;
+    const { name, phone, email, address, village, mandal, district, city, state, pincode, aadharOrId, careOf } = req.body;
 
     const { data, error } = await supabase
       .from('borrowers')
@@ -177,6 +182,9 @@ export async function updateBorrower(req, res, next) {
         phone,
         email,
         address,
+        village,
+        mandal,
+        district,
         city,
         state,
         pincode,

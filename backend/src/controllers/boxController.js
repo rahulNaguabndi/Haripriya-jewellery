@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabaseClient.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { requireFields } from '../utils/validators.js';
+import { fetchAll } from '../utils/fetchAll.js';
 
 const METAL_TYPES = ['Gold', 'Silver'];
 
@@ -179,6 +180,132 @@ export async function lookupPacket(req, res, next) {
     }
 
     res.json({ found: true, loan, box });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ---------------------------------------------------------------------
+// Visual storage view
+// ---------------------------------------------------------------------
+
+// Only packets physically in storage count toward a box's contents - a
+// closed loan's packet has been handed back to the borrower.
+const IN_STORAGE_STATUSES = ['active', 'partial_payment', 'defaulted'];
+
+// A loan's packet is filed under its first item's metal type (same rule as
+// lookupPacket above).
+function packetMetal(loan) {
+  return loan.loan_items?.[0]?.metal_type || loan.metal_type || null;
+}
+
+function boxHolds(box, loan) {
+  return (
+    box.range_start != null &&
+    box.range_end != null &&
+    loan.packet_number >= box.range_start &&
+    loan.packet_number <= box.range_end &&
+    packetMetal(loan) === box.metal_type
+  );
+}
+
+// Alphanumeric-aware ordering so box "10" sorts after "9" and "A2" before "A10".
+const naturalCompare = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+
+// GET /api/boxes/overview
+// Every locker with its boxes and a per-box tally of packets currently in
+// storage, plus how many in-storage packets aren't covered by any box -
+// everything the locker -> box drill-down needs in one request.
+export async function getStorageOverview(req, res, next) {
+  try {
+    const [lockersRes, boxesRes, loans] = await Promise.all([
+      supabase.from('lockers').select('*').order('display_order', { ascending: true }),
+      supabase.from('boxes').select('*'),
+      fetchAll(() =>
+        supabase
+          .from('loans')
+          .select('id, packet_number, loan_amount, status, metal_type, loan_items(metal_type, net_weight, gross_weight)')
+          .not('packet_number', 'is', null)
+          .in('status', IN_STORAGE_STATUSES)
+          .order('id', { ascending: true })
+      ),
+    ]);
+    if (lockersRes.error) throw new ApiError(400, lockersRes.error.message);
+    if (boxesRes.error) throw new ApiError(400, boxesRes.error.message);
+
+    const boxes = (boxesRes.data || []).map((box) => {
+      const held = loans.filter((loan) => boxHolds(box, loan));
+      return {
+        ...box,
+        packetCount: held.length,
+        principal: held.reduce((n, l) => n + (Number(l.loan_amount) || 0), 0),
+        netWeight:
+          Math.round(
+            held.reduce(
+              (n, l) => n + (l.loan_items || []).reduce((m, i) => m + (Number(i.net_weight ?? i.gross_weight) || 0), 0),
+              0
+            ) * 100
+          ) / 100,
+        rangeSize: box.range_start != null && box.range_end != null ? box.range_end - box.range_start + 1 : null,
+      };
+    });
+    boxes.sort((a, b) => naturalCompare(a.box_number, b.box_number));
+
+    const lockers = (lockersRes.data || []).map((locker) => {
+      const lockerBoxes = boxes.filter((b) => b.locker_id === locker.id);
+      return {
+        ...locker,
+        boxes: lockerBoxes,
+        packetCount: lockerBoxes.reduce((n, b) => n + b.packetCount, 0),
+        principal: lockerBoxes.reduce((n, b) => n + b.principal, 0),
+      };
+    });
+
+    const unboxed = loans.filter((loan) => !boxes.some((box) => boxHolds(box, loan)));
+
+    res.json({
+      lockers,
+      totals: { packetsInStorage: loans.length, unboxedPackets: unboxed.length },
+      unboxedSample: unboxed
+        .map((l) => l.packet_number)
+        .sort((a, b) => a - b)
+        .slice(0, 50),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/boxes/:id/contents
+// Packets currently in one box (per its range + metal), with enough detail
+// to identify each one at the counter: borrower, items, weight, amount.
+export async function getBoxContents(req, res, next) {
+  try {
+    const { data: box, error: boxError } = await supabase
+      .from('boxes')
+      .select('*, lockers(id, name)')
+      .eq('id', req.params.id)
+      .maybeSingle();
+    if (boxError) throw new ApiError(400, boxError.message);
+    if (!box) throw new ApiError(404, 'Box not found');
+
+    if (box.range_start == null || box.range_end == null) {
+      return res.json({ box, packets: [] });
+    }
+
+    const loans = await fetchAll(() =>
+      supabase
+        .from('loans')
+        .select(
+          'id, loan_number, packet_number, loan_date, loan_amount, status, metal_type, borrowers(id, name, phone, village), loan_items(item_type, metal_type, gross_weight, net_weight, purity, huid)'
+        )
+        .gte('packet_number', box.range_start)
+        .lte('packet_number', box.range_end)
+        .in('status', IN_STORAGE_STATUSES)
+        .order('packet_number', { ascending: true })
+    );
+
+    res.json({ box, packets: loans.filter((loan) => packetMetal(loan) === box.metal_type) });
   } catch (err) {
     next(err);
   }

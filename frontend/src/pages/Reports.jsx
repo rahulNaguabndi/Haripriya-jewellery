@@ -4,10 +4,12 @@ import DataTable from '../components/common/DataTable.jsx';
 import StatusBadge from '../components/common/StatusBadge.jsx';
 import { TableSkeleton } from '../components/common/Skeleton.jsx';
 import ReportsOverview from '../components/Reports/ReportsOverview.jsx';
+import Demographics from '../components/Reports/Demographics.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
 
 const tabs = [
   { key: 'overview', label: 'Overview' },
+  { key: 'demographics', label: 'Demographics' },
   { key: 'outstanding-interest', label: 'Outstanding Interest' },
   { key: 'overdue', label: 'Due Date Passed (informational)' },
   { key: 'closed', label: 'Closed Loans' },
@@ -40,7 +42,7 @@ export default function Reports() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (tab === 'overview') return;
+    if (tab === 'overview' || tab === 'demographics') return;
     setLoading(true);
     setError('');
     api
@@ -76,6 +78,8 @@ export default function Reports() {
       {error && <div style={{ color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
       {tab === 'overview' ? (
         <ReportsOverview />
+      ) : tab === 'demographics' ? (
+        <Demographics />
       ) : loading ? (
         <TableSkeleton columns={columns.length} rows={8} />
       ) : (

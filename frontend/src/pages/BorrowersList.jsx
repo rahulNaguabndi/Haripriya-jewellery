@@ -10,7 +10,9 @@ import BorrowerModal from '../components/Borrowers/BorrowerModal.jsx';
 const PAGE_SIZE = 20;
 
 const advancedFilterFields = [
-  { name: 'city', label: 'Village / City', placeholder: 'Village or city' },
+  { name: 'village', label: 'Village', placeholder: 'Village' },
+  { name: 'district', label: 'District', placeholder: 'District' },
+  { name: 'city', label: 'City / Town', placeholder: 'City or town' },
   { name: 'minLoanAmount', label: 'Min Loan Amount', type: 'number', width: 140 },
   { name: 'maxLoanAmount', label: 'Max Loan Amount', type: 'number', width: 140 },
   { name: 'loanDateFrom', label: 'Loan Date From', type: 'date', width: 160 },
@@ -61,7 +63,8 @@ export default function BorrowersList() {
     { key: 'care_of', label: 'C/O' },
     { key: 'phone', label: 'Phone' },
     { key: 'email', label: 'Email' },
-    { key: 'city', label: 'City' },
+    { key: 'village', label: 'Village', render: (r) => r.village || r.city || '—' },
+    { key: 'district', label: 'District', render: (r) => r.district || '—' },
   ];
 
   return (
@@ -85,6 +88,7 @@ export default function BorrowersList() {
 
       {showFilters && (
         <FilterBar
+          alwaysOpen
           fields={advancedFilterFields}
           values={filters}
           onChange={(name, value) => setFilters((f) => ({ ...f, [name]: value }))}

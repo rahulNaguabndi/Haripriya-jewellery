@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../services/api.js';
 import AdminUserModal from '../components/Admin/AdminUserModal.jsx';
+import BusinessProfileCard from '../components/Admin/BusinessProfileCard.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { ACCENT_PRESETS } from '../theme/accents.js';
 
@@ -291,6 +292,8 @@ export default function AdminSettings() {
           </>
         )}
       </div>
+
+      {role && <BusinessProfileCard canEdit={canEditConfig} />}
 
       <div className="card" style={{ padding: 22, marginBottom: 24 }}>
         <div className="font-serif" style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>Interest Tiers</div>

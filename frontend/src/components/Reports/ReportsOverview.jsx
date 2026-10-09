@@ -15,17 +15,8 @@ import {
 } from 'recharts';
 import { api } from '../../services/api.js';
 import { useChartColors, formatMonthLabel } from '../../utils/chartTheme.js';
-import { formatCurrency } from '../../utils/formatters.js';
+import { formatCurrency, compactINR } from '../../utils/formatters.js';
 import { Skeleton } from '../common/Skeleton.jsx';
-
-// Compact Indian-format currency for dense chart axes (₹1.2L, ₹45k).
-function compactINR(n) {
-  const v = Number(n) || 0;
-  if (v >= 1e7) return `₹${(v / 1e7).toFixed(1)}Cr`;
-  if (v >= 1e5) return `₹${(v / 1e5).toFixed(1)}L`;
-  if (v >= 1e3) return `₹${(v / 1e3).toFixed(0)}k`;
-  return `₹${v}`;
-}
 
 const STATUS_META = {
   active: { label: 'Active', colorKey: 'success' },

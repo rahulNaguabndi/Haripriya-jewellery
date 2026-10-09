@@ -11,6 +11,7 @@ const navItems = [
   { to: '/notices', label: 'Notices' },
   { to: '/coverage', label: 'Coverage' },
   { to: '/storage', label: 'Storage' },
+  { to: '/accounts', label: 'Accounts' },
   { to: '/reports', label: 'Reports' },
   { to: '/admin/settings', label: 'Admin Settings' },
 ];
@@ -78,7 +79,7 @@ export default function AppShell({ children }) {
           </div>
         </div>
 
-        <nav className="hidden md:flex" style={{ gap: 4, flex: 1 }}>
+        <nav className="hidden xl:flex" style={{ gap: 4, flex: 1 }}>
           {navItems.map((item) => (
             <NavLink key={item.to} to={item.to} style={navLinkStyle}>
               {item.label}
@@ -86,9 +87,9 @@ export default function AppShell({ children }) {
           ))}
         </nav>
 
-        <div className="hidden md:flex" style={{ flex: 1 }} />
+        <div className="hidden xl:flex" style={{ flex: 1 }} />
 
-        <div className="hidden md:flex" style={{ alignItems: 'center', gap: 14 }}>
+        <div className="hidden xl:flex" style={{ alignItems: 'center', gap: 14 }}>
           <div style={{ fontSize: 12.5, color: '#C9B89A' }}>{user?.email}</div>
           <ThemeToggle style={{ border: '1px solid #4a4030' }} />
           <button
@@ -100,7 +101,7 @@ export default function AppShell({ children }) {
           </button>
         </div>
 
-        <div className="flex md:hidden items-center gap-2 ml-auto">
+        <div className="flex xl:hidden items-center gap-2 ml-auto">
           <ThemeToggle style={{ border: '1px solid #4a4030' }} />
           <button
             type="button"
@@ -117,8 +118,8 @@ export default function AppShell({ children }) {
 
       {navOpen && (
         <div
-          className="md:hidden flex flex-col"
-          style={{ background: 'var(--ink)', borderTop: '1px solid #362E22', position: 'sticky', top: 62, zIndex: 49, padding: '10px 16px 16px' }}
+          className="xl:hidden flex flex-col"
+          style={{ background: 'var(--ink)', borderTop: '1px solid #362E22', position: 'sticky', top: 62, zIndex: 49, padding: '10px 16px 16px', maxHeight: 'calc(100dvh - 62px)', overflowY: 'auto' }}
         >
           {navItems.map((item) => (
             <NavLink key={item.to} to={item.to} onClick={() => setNavOpen(false)} style={navLinkStyle}>
