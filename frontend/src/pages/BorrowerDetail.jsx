@@ -84,7 +84,7 @@ export default function BorrowerDetail() {
               {borrower.phone} {borrower.email && `· ${borrower.email}`}
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: 13.5 }}>
-              {[borrower.address, borrower.city, borrower.state, borrower.pincode].filter(Boolean).join(', ')}
+              {[borrower.address, borrower.village, borrower.mandal, borrower.city, borrower.district, borrower.state, borrower.pincode].filter(Boolean).join(', ')}
             </div>
             {borrower.aadhar_or_id && (
               <div style={{ color: 'var(--text-muted)', fontSize: 13.5 }}>ID: {borrower.aadhar_or_id}</div>

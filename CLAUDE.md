@@ -172,6 +172,27 @@ Supabase directly:
 Snake_case in the DB / Supabase responses, camelCase in request bodies and
 JS — controllers do the mapping manually field-by-field (no ORM/schema layer).
 
+- `utils/fetchAll.js` — pages through a Supabase select in 1000-row chunks
+  (PostgREST's default cap). Use it for any bulk read that must be complete
+  (accounts ledger, storage overview); needs a deterministic `.order()`.
+- `controllers/accountsController.js` — `/api/accounts/ledger` (JSON) and
+  `/ledger.xlsx` (exceljs) share one `buildLedger()`; admin-only. Partial
+  payments are principal reductions, interest is realised at closure
+  (`interest_collected`), and accrued-but-uncollected interest is reported
+  separately as unrealised. Tax is deliberately not computed.
+- `services/messaging/` — WhatsApp (Meta Cloud API, approved *template* +
+  variables) and Twilio SMS, both via `fetch`. With no env keys, sends are
+  logged to `message_log` as `not_configured` — nothing leaves the server.
+  `templates.js` is the single source for preview text, SMS body and
+  WhatsApp variables. Setup: `docs/MESSAGING_SETUP.md`.
+- HUID (BIS Hallmark Unique ID) lives on `loan_items.huid`. BIS has **no
+  public lookup API**; verification is a staff check in the BIS CARE app,
+  recorded via `PATCH /api/loans/:id/items/:itemId/huid-verification`.
+  `replaceLoanItems` carries a HUID's verification across edits.
+- `business_profile` (single active row) = legal name/address/licence used
+  by the pledge form and notices; `utils/businessProfile.js` falls back to
+  defaults if the table is missing.
+
 ### Frontend (`frontend/src`)
 
 - `App.jsx` — route table; every route except `/login` is wrapped in
@@ -268,6 +289,16 @@ that direction; don't introduce a generic SaaS blue/gray look.
   stay in lockstep with light/dark and the accent. Backend chart feeds:
   `GET /api/reports/status-breakdown`, `/payments-monthly`, `/loans-monthly`
   (in-memory bucketing over one bulk fetch, not grouped SQL).
+- **Mobile**: `DataTable` adds `.table-stack` + `data-label` per cell, so
+  below 640px tables reflow into label/value cards. Hand-written tables
+  must do the same. Side-by-side form fields use `.form-row` (wraps). The
+  full nav shows from `xl` (1280px) up; below that it's the ☰ menu.
+  Cormorant's old-style "1" reads as "I", so put codes/numbers in
+  serif headings in `.num`; `.tabular` also forces lining figures.
+- **Print**: `/loans/:id/print` (`pages/PledgeForm.jsx`) renders outside
+  `AppShell` (`<ProtectedRoute bare>`); A4 rules live in `theme.css`
+  (`.pledge-sheet`, `@page`, `.no-print`). Printing/PDF uses the browser's
+  print dialog. Keep a sheet under ~1123px tall at 794px wide (one page).
 - Respect `prefers-reduced-motion` (already handled globally in `theme.css`).
   Currency/counts use `.tabular` (tabular-nums) so columns align.
 

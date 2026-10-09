@@ -4,6 +4,7 @@ import { api } from '../services/api.js';
 import DataTable from '../components/common/DataTable.jsx';
 import { TableSkeleton } from '../components/common/Skeleton.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
+import SendMessageModal from '../components/Messaging/SendMessageModal.jsx';
 
 export default function NoticesDue() {
   const navigate = useNavigate();
@@ -13,6 +14,16 @@ export default function NoticesDue() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [sendingKey, setSendingKey] = useState(null);
+  const [selected, setSelected] = useState(() => new Set());
+  const [messageLoanIds, setMessageLoanIds] = useState(null);
+
+  function toggleSelected(loanId) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(loanId) ? next.delete(loanId) : next.add(loanId);
+      return next;
+    });
+  }
 
   async function load() {
     setLoading(true);
@@ -47,6 +58,20 @@ export default function NoticesDue() {
 
   function columnsFor(rows, buttonLabel) {
     return [
+      {
+        key: 'select',
+        label: '',
+        render: (r) => (
+          <input
+            type="checkbox"
+            aria-label={`Select ${r.loanNumber} for messaging`}
+            checked={selected.has(r.loanId)}
+            onClick={(e) => e.stopPropagation()}
+            onChange={() => toggleSelected(r.loanId)}
+            style={{ width: 18, height: 18 }}
+          />
+        ),
+      },
       { key: 'loan_number', label: 'Loan #', render: (r) => r.loanNumber },
       { key: 'borrower', label: 'Borrower', render: (r) => r.borrowerName || '—' },
       { key: 'loan_date', label: 'Loan Date', render: (r) => formatDate(r.loanDate) },
@@ -83,7 +108,17 @@ export default function NoticesDue() {
 
   return (
     <div>
-      <div className="font-serif" style={{ fontSize: 26, fontWeight: 600, marginBottom: 6 }}>Notices Due</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
+        <div className="font-serif" style={{ fontSize: 26, fontWeight: 600 }}>Notices Due</div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn-secondary" disabled={dueNow.length === 0} onClick={() => setMessageLoanIds([...new Set(dueNow.map((r) => r.loanId))])}>
+            WhatsApp / SMS all due ({new Set(dueNow.map((r) => r.loanId)).size})
+          </button>
+          <button className="btn btn-primary" disabled={selected.size === 0} onClick={() => setMessageLoanIds([...selected])}>
+            Message selected ({selected.size})
+          </button>
+        </div>
+      </div>
       <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
         Each notice sent adds {formatCurrency(costAmount)} (flat, non-compounding) to the loan's amount owed.
       </div>
@@ -113,6 +148,7 @@ export default function NoticesDue() {
         emptyMessage="No exempted loans pending."
         onRowClick={(r) => navigate(`/loans/${r.loanId}`)}
       />
+      {messageLoanIds && <SendMessageModal loanIds={messageLoanIds} onClose={() => setMessageLoanIds(null)} />}
     </div>
   );
 }

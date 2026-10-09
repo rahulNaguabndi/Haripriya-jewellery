@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Modal from '../common/Modal.jsx';
 import { api } from '../../services/api.js';
 
-const empty = { name: '', phone: '', email: '', address: '', city: '', state: '', pincode: '', aadharOrId: '', careOf: '' };
+const empty = { name: '', phone: '', email: '', address: '', village: '', mandal: '', district: '', city: '', state: '', pincode: '', aadharOrId: '', careOf: '' };
 
 export default function BorrowerModal({ borrower, onClose, onSaved }) {
   const [form, setForm] = useState(borrower ? { ...empty, ...borrower, aadharOrId: borrower.aadhar_or_id, careOf: borrower.care_of } : empty);
@@ -33,38 +33,52 @@ export default function BorrowerModal({ borrower, onClose, onSaved }) {
   }
 
   return (
-    <Modal title={borrower ? 'Edit Borrower' : 'New Borrower'} onClose={onClose}>
+    <Modal title={borrower ? 'Edit Borrower' : 'New Borrower'} onClose={onClose} width={560}>
       <form onSubmit={handleSubmit}>
         <div className="field">
           <label>Name *</label>
           <input required value={form.name} onChange={(e) => set('name', e.target.value)} />
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <div className="field" style={{ flex: 1 }}>
-            <label>Phone</label>
-            <input value={form.phone || ''} onChange={(e) => set('phone', e.target.value)} />
+        <div className="form-row">
+          <div className="field">
+            <label>Phone (WhatsApp)</label>
+            <input type="tel" inputMode="tel" value={form.phone || ''} onChange={(e) => set('phone', e.target.value)} placeholder="10-digit mobile" />
           </div>
-          <div className="field" style={{ flex: 1 }}>
+          <div className="field">
             <label>Email</label>
             <input type="email" value={form.email || ''} onChange={(e) => set('email', e.target.value)} />
           </div>
         </div>
         <div className="field">
           <label>Address</label>
-          <input value={form.address || ''} onChange={(e) => set('address', e.target.value)} />
+          <input value={form.address || ''} onChange={(e) => set('address', e.target.value)} placeholder="House no., street" />
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <div className="field" style={{ flex: 1 }}>
-            <label>City</label>
+        <div className="form-row">
+          <div className="field">
+            <label>Village</label>
+            <input value={form.village || ''} onChange={(e) => set('village', e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Mandal / Taluk</label>
+            <input value={form.mandal || ''} onChange={(e) => set('mandal', e.target.value)} />
+          </div>
+          <div className="field">
+            <label>District</label>
+            <input value={form.district || ''} onChange={(e) => set('district', e.target.value)} />
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="field">
+            <label>City / Town</label>
             <input value={form.city || ''} onChange={(e) => set('city', e.target.value)} />
           </div>
-          <div className="field" style={{ flex: 1 }}>
+          <div className="field">
             <label>State</label>
             <input value={form.state || ''} onChange={(e) => set('state', e.target.value)} />
           </div>
-          <div className="field" style={{ flex: 1 }}>
+          <div className="field">
             <label>Pincode</label>
-            <input value={form.pincode || ''} onChange={(e) => set('pincode', e.target.value)} />
+            <input inputMode="numeric" value={form.pincode || ''} onChange={(e) => set('pincode', e.target.value)} />
           </div>
         </div>
         <div className="field">

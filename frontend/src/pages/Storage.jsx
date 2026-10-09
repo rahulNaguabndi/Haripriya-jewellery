@@ -1,27 +1,57 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../services/api.js';
+import StorageVisual from '../components/Storage/StorageVisual.jsx';
+import { ListSkeleton } from '../components/common/Skeleton.jsx';
 
 const METAL_TYPES = ['Gold', 'Silver'];
 
 export default function Storage() {
-  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') === 'manage' ? 'manage' : 'visual';
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
+        <div className="font-serif" style={{ fontSize: 26, fontWeight: 600 }}>Storage</div>
+        <div style={{ display: 'flex', gap: 6 }} role="tablist">
+          {[['visual', 'Lockers'], ['manage', 'Manage']].map(([key, label]) => (
+            <button
+              key={key}
+              role="tab"
+              aria-selected={tab === key}
+              className="btn"
+              onClick={() => setParams(key === 'manage' ? { tab: 'manage' } : {})}
+              style={{
+                background: tab === key ? 'var(--ink)' : 'var(--surface)',
+                color: tab === key ? '#fff' : 'var(--text)',
+                border: '1px solid var(--border)',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {tab === 'visual' ? <StorageVisual /> : <StorageManage />}
+    </div>
+  );
+}
+
+function StorageManage() {
   const [role, setRole] = useState(null);
   const [lockers, setLockers] = useState([]);
   const [boxes, setBoxes] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const [newLocker, setNewLocker] = useState({ name: '', metalTypes: [], displayOrder: 0 });
+  const [newLocker, setNewLocker] = useState({ name: '', metalTypes: [], displayOrder: 0, boxCapacity: '' });
   const [savingLocker, setSavingLocker] = useState(false);
 
   const [newBox, setNewBox] = useState({ lockerId: '', boxNumber: '', metalType: 'Gold', rangeStart: '', rangeEnd: '' });
   const [savingBox, setSavingBox] = useState(false);
   const [boxOverlapWarning, setBoxOverlapWarning] = useState(null);
 
-  const [lookupInput, setLookupInput] = useState('');
-  const [lookupResult, setLookupResult] = useState(null);
-  const [lookingUp, setLookingUp] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -64,13 +94,27 @@ export default function Storage() {
     setSavingLocker(true);
     setError('');
     try {
-      await api.post('/lockers', newLocker);
-      setNewLocker({ name: '', metalTypes: [], displayOrder: 0 });
+      await api.post('/lockers', {
+        ...newLocker,
+        boxCapacity: newLocker.boxCapacity === '' ? null : Number(newLocker.boxCapacity),
+      });
+      setNewLocker({ name: '', metalTypes: [], displayOrder: 0, boxCapacity: '' });
       load();
     } catch (err) {
       setError(err.message);
     } finally {
       setSavingLocker(false);
+    }
+  }
+
+  async function editCapacity(locker) {
+    const input = prompt(`How many box slots does ${locker.name} hold? (blank = unknown)`, locker.box_capacity ?? '');
+    if (input === null) return;
+    try {
+      await api.put(`/lockers/${locker.id}`, { boxCapacity: input.trim() === '' ? null : Number(input) });
+      load();
+    } catch (err) {
+      setError(err.message);
     }
   }
 
@@ -124,59 +168,11 @@ export default function Storage() {
     }
   }
 
-  async function runLookup() {
-    const packetNumber = Number(lookupInput);
-    if (!packetNumber) return;
-    setLookingUp(true);
-    setLookupResult(null);
-    setError('');
-    try {
-      const res = await api.get('/boxes/lookup', { params: { packetNumber } });
-      setLookupResult(res.data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLookingUp(false);
-    }
-  }
-
-  if (loading) return <div>Loading…</div>;
+  if (loading) return <ListSkeleton rows={6} />;
 
   return (
     <div>
-      <div className="font-serif" style={{ fontSize: 26, fontWeight: 600, marginBottom: 20 }}>Storage</div>
-
       {error && <div style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 16 }}>{error}</div>}
-
-      <div className="card" style={{ padding: 20, marginBottom: 24 }}>
-        <div className="font-serif" style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Find a Packet</div>
-        <div style={{ display: 'flex', gap: 8, maxWidth: 400 }}>
-          <input
-            type="number"
-            placeholder="Packet number"
-            value={lookupInput}
-            onChange={(e) => setLookupInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && runLookup()}
-          />
-          <button className="btn btn-primary" onClick={runLookup} disabled={lookingUp}>
-            {lookingUp ? '…' : 'Locate'}
-          </button>
-        </div>
-        {lookupResult && lookupResult.found && (
-          <div style={{ marginTop: 14, fontSize: 14 }}>
-            <div>
-              Loan <b>{lookupResult.loan.loan_number}</b> ({lookupResult.loan.borrowers?.name || 'Unknown borrower'})
-            </div>
-            <div style={{ marginTop: 4 }}>
-              Locker <b>{lookupResult.box.lockers?.name}</b>, Box <b>{lookupResult.box.box_number}</b>
-              {' '}(range {lookupResult.box.range_start}–{lookupResult.box.range_end})
-            </div>
-          </div>
-        )}
-        {lookupResult && !lookupResult.found && (
-          <div style={{ marginTop: 14, fontSize: 14, color: 'var(--text-muted)' }}>{lookupResult.reason}</div>
-        )}
-      </div>
 
       <div className="card" style={{ padding: 20, marginBottom: 24 }}>
         <div className="font-serif" style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Lockers</div>
@@ -184,10 +180,14 @@ export default function Storage() {
           <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--divider)' }}>
             <div>
               <span style={{ fontWeight: 600 }}>{l.name}</span>{' '}
-              <span style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>({(l.metal_types || []).join(', ')})</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>({(l.metal_types || []).join(', ')})</span>{' '}
+              <span style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>· {l.box_capacity ? `${l.box_capacity} box slots` : 'capacity not set'}</span>
             </div>
             {canEdit && (
-              <button className="btn btn-danger" onClick={() => deleteLocker(l.id)}>Delete</button>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="btn btn-secondary" onClick={() => editCapacity(l)}>Capacity</button>
+                <button className="btn btn-danger" onClick={() => deleteLocker(l.id)}>Delete</button>
+              </div>
             )}
           </div>
         ))}
@@ -197,7 +197,7 @@ export default function Storage() {
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginTop: 16, flexWrap: 'wrap' }}>
             <div className="field" style={{ marginBottom: 0 }}>
               <label>Name</label>
-              <input value={newLocker.name} onChange={(e) => setNewLocker((l) => ({ ...l, name: e.target.value }))} placeholder="Godrej Steelage" />
+              <input value={newLocker.name} onChange={(e) => setNewLocker((l) => ({ ...l, name: e.target.value }))} placeholder="Godrej" />
             </div>
             <div className="field" style={{ marginBottom: 0 }}>
               <label>Metal Types</label>
@@ -209,6 +209,10 @@ export default function Storage() {
                   </label>
                 ))}
               </div>
+            </div>
+            <div className="field" style={{ marginBottom: 0, width: 110 }}>
+              <label>Box slots</label>
+              <input type="number" min="1" value={newLocker.boxCapacity} onChange={(e) => setNewLocker((l) => ({ ...l, boxCapacity: e.target.value }))} placeholder="e.g. 100" />
             </div>
             <div className="field" style={{ marginBottom: 0, width: 100 }}>
               <label>Order</label>
@@ -226,7 +230,7 @@ export default function Storage() {
         {boxOverlapWarning && (
           <div style={{ fontSize: 12.5, color: 'var(--warning)', marginBottom: 10 }}>{boxOverlapWarning}</div>
         )}
-        <div className="table-wrap">
+        <div className="table-wrap table-stack">
           <table>
             <thead>
               <tr>
@@ -240,12 +244,12 @@ export default function Storage() {
             <tbody>
               {boxes.map((b) => (
                 <tr key={b.id}>
-                  <td>{b.box_number}</td>
-                  <td>{b.lockers?.name}</td>
-                  <td>{b.metal_type}</td>
-                  <td>{b.range_start != null ? `${b.range_start}–${b.range_end}` : '—'}</td>
+                  <td data-label="Box #">{b.box_number}</td>
+                  <td data-label="Locker">{b.lockers?.name}</td>
+                  <td data-label="Metal">{b.metal_type}</td>
+                  <td data-label="Range">{b.range_start != null ? `${b.range_start}–${b.range_end}` : '—'}</td>
                   {canEdit && (
-                    <td>
+                    <td data-label="">
                       <button className="btn btn-danger" onClick={() => deleteBox(b.id)}>Delete</button>
                     </td>
                   )}

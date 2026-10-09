@@ -9,7 +9,10 @@ import LoanModal from '../components/Loans/LoanModal.jsx';
 import PaymentModal from '../components/Payments/PaymentModal.jsx';
 import LoanClosureModal from '../components/Loans/LoanClosureModal.jsx';
 import LoanRolloverModal from '../components/Loans/LoanRolloverModal.jsx';
+import HuidVerificationModal, { HuidChip } from '../components/Loans/HuidVerification.jsx';
+import SendMessageModal from '../components/Messaging/SendMessageModal.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
+import { ListSkeleton } from '../components/common/Skeleton.jsx';
 
 const statuses = ['active', 'partial_payment', 'closed', 'defaulted'];
 
@@ -24,6 +27,8 @@ export default function LoanDetail() {
   const [showPayment, setShowPayment] = useState(false);
   const [showClosure, setShowClosure] = useState(false);
   const [showRollover, setShowRollover] = useState(false);
+  const [verifyItem, setVerifyItem] = useState(null);
+  const [showMessage, setShowMessage] = useState(false);
 
   async function load() {
     try {
@@ -88,7 +93,7 @@ export default function LoanDetail() {
   }
 
   if (error) return <div style={{ color: 'var(--danger)' }}>{error}</div>;
-  if (!loan) return <div>Loading…</div>;
+  if (!loan) return <ListSkeleton rows={6} />;
 
   const paymentColumns = [
     { key: 'payment_date', label: 'Date', render: (r) => formatDate(r.payment_date) },
@@ -104,9 +109,9 @@ export default function LoanDetail() {
       </button>
 
       <div className="card" style={{ padding: 24, marginBottom: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
           <div>
-            <div className="font-serif" style={{ fontSize: 22, fontWeight: 600 }}>{loan.loan_number}</div>
+            <div className="num" style={{ fontSize: 21, fontWeight: 700, letterSpacing: "0.01em" }}>{loan.loan_number}</div>
             <div style={{ color: 'var(--text-muted)', fontSize: 13.5, marginTop: 4 }}>
               Borrower:{' '}
               <Link to={`/borrowers/${loan.borrowers?.id}`} style={{ color: 'var(--gold-deep)', fontWeight: 600 }}>
@@ -114,12 +119,19 @@ export default function LoanDetail() {
               </Link>
             </div>
             {(loan.loan_items || []).map((item) => (
-              <div key={item.id} style={{ color: 'var(--text-muted)', fontSize: 13.5 }}>
+              <div key={item.id} style={{ color: 'var(--text-muted)', fontSize: 13.5, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 8px', marginTop: 2 }}>
+                <span>
                 {item.item_type} · {item.metal_type}
                 {item.gross_weight ? ` · gross ${item.gross_weight}g` : ''}
                 {item.net_weight ? ` · net ${item.net_weight}g` : ''}
                 {item.purity ? ` · ${item.purity}` : ''}
                 {item.description ? ` · ${item.description}` : ''}
+                </span>
+                {item.huid && (
+                  <button type="button" onClick={() => setVerifyItem(item)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }} aria-label={`Verify HUID ${item.huid}`}>
+                    <HuidChip item={item} />
+                  </button>
+                )}
               </div>
             ))}
             {loan.previousLoan && (
@@ -139,11 +151,13 @@ export default function LoanDetail() {
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <select value={loan.status} onChange={handleStatusChange}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <select value={loan.status} onChange={handleStatusChange} style={{ width: 'auto' }} aria-label="Loan status">
               {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
             <button className="btn btn-secondary" onClick={() => setShowEdit(true)}>Edit</button>
+            <button className="btn btn-secondary" onClick={() => navigate(`/loans/${loan.id}/print`)}>Print form</button>
+            <button className="btn btn-secondary" onClick={() => setShowMessage(true)}>Message</button>
             {loan.status !== 'closed' && !loan.rolledInto && (
               <button className="btn btn-secondary" onClick={() => setShowRollover(true)}>Roll Over</button>
             )}
@@ -201,7 +215,7 @@ export default function LoanDetail() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
+      <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: 20, marginBottom: 20 }}>
         <InterestSummaryCard interest={loan.interest} />
         <div className="card" style={{ padding: 20 }}>
           <div className="font-serif" style={{ fontSize: 17, fontWeight: 600, marginBottom: 14 }}>Overdue Notices</div>
@@ -266,6 +280,18 @@ export default function LoanDetail() {
           onCancel={() => setShowClosure(false)}
         />
       )}
+      {verifyItem && (
+        <HuidVerificationModal
+          loanId={loan.id}
+          item={verifyItem}
+          onClose={() => setVerifyItem(null)}
+          onSaved={() => {
+            setVerifyItem(null);
+            load();
+          }}
+        />
+      )}
+      {showMessage && <SendMessageModal loanIds={[loan.id]} onClose={() => setShowMessage(false)} />}
       {showRollover && (
         <LoanRolloverModal
           loan={loan}
