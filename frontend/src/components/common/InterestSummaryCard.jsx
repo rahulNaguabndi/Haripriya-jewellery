@@ -28,7 +28,7 @@ export default function InterestSummaryCard({ interest }) {
 
   return (
     <div className="card" style={{ padding: 20, position: 'relative' }}>
-      <div className="font-serif" style={{ fontSize: 17, fontWeight: 600, marginBottom: 14 }}>Interest Summary</div>
+      <h2 className="section-title" style={{ marginBottom: 14 }}>Interest summary</h2>
 
       <button
         type="button"

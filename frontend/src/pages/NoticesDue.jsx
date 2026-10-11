@@ -5,6 +5,7 @@ import DataTable from '../components/common/DataTable.jsx';
 import { TableSkeleton } from '../components/common/Skeleton.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
 import SendMessageModal from '../components/Messaging/SendMessageModal.jsx';
+import PageHeader from '../components/common/PageHeader.jsx';
 
 export default function NoticesDue() {
   const navigate = useNavigate();
@@ -99,7 +100,7 @@ export default function NoticesDue() {
   if (loading) {
     return (
       <div>
-        <div className="font-serif" style={{ fontSize: 26, fontWeight: 600, marginBottom: 20 }}>Notices Due</div>
+        <PageHeader title="Notices due" subtitle="Loans that have crossed a notice threshold." />
         <TableSkeleton columns={6} rows={8} />
       </div>
     );
@@ -108,36 +109,35 @@ export default function NoticesDue() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
-        <div className="font-serif" style={{ fontSize: 26, fontWeight: 600 }}>Notices Due</div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary" disabled={dueNow.length === 0} onClick={() => setMessageLoanIds([...new Set(dueNow.map((r) => r.loanId))])}>
-            WhatsApp / SMS all due ({new Set(dueNow.map((r) => r.loanId)).size})
-          </button>
-          <button className="btn btn-primary" disabled={selected.size === 0} onClick={() => setMessageLoanIds([...selected])}>
-            Message selected ({selected.size})
-          </button>
-        </div>
-      </div>
-      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
-        Each notice sent adds {formatCurrency(costAmount)} (flat, non-compounding) to the loan's amount owed.
-      </div>
+      <PageHeader
+        title="Notices due"
+        subtitle={`Each notice sent adds ${formatCurrency(costAmount)} (flat, not compounded) to the amount owed.`}
+        actions={
+          <>
+            <button className="btn btn-secondary" disabled={dueNow.length === 0} onClick={() => setMessageLoanIds([...new Set(dueNow.map((r) => r.loanId))])}>
+              Message all due ({new Set(dueNow.map((r) => r.loanId)).size})
+            </button>
+            <button className="btn btn-primary" disabled={selected.size === 0} onClick={() => setMessageLoanIds([...selected])}>
+              Message selected ({selected.size})
+            </button>
+          </>
+        }
+      />
 
-      <div className="font-serif" style={{ fontSize: 16, fontWeight: 600, marginBottom: 10 }}>
-        Due now ({dueNow.length})
-      </div>
+      <h2 className="section-title">Due now <span className="tabular" style={{ color: 'var(--text-muted)', fontWeight: 500 }}>· {dueNow.length}</span></h2>
       <div style={{ marginBottom: 28 }}>
         <DataTable
           columns={columnsFor(dueNow, 'Send notice')}
           rows={dueNow}
-          emptyMessage="No notices due."
+          emptyMessage="No notices due"
+          emptyHint="Every open loan is within its notice schedule."
           onRowClick={(r) => navigate(`/loans/${r.loanId}`)}
         />
       </div>
 
-      <div className="font-serif" style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>
-        Exempted — partial payments made ({exempted.length})
-      </div>
+      <h2 className="section-title" style={{ marginTop: 28, marginBottom: 4 }}>
+        Exempted · partial payments made <span className="tabular" style={{ color: 'var(--text-muted)', fontWeight: 500 }}>· {exempted.length}</span>
+      </h2>
       <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 10 }}>
         These loans have received partial payments, so the notice is normally suppressed. If a loan is still
         under-covered despite the payments, send it anyway.

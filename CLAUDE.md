@@ -192,6 +192,29 @@ JS — controllers do the mapping manually field-by-field (no ORM/schema layer).
 - `business_profile` (single active row) = legal name/address/licence used
   by the pledge form and notices; `utils/businessProfile.js` falls back to
   defaults if the table is missing.
+- **Activity log**: `utils/activityLog.js`'s `logActivity(req, {...})` is
+  called after every money/record-changing action (loans, payments,
+  borrowers, rates, settings, notices, photos). It never throws - an audit
+  write failure must not undo the action. Add a call when you add a new
+  write endpoint. `GET /api/activity` is admin-only unless scoped by
+  `loanId`/`borrowerId`.
+- **Re-pledge vs rollover**: rollover (`previous_loan_id`) closes an *open*
+  loan and opens a new one; re-pledge (`repledged_from_loan_id`) starts a new
+  loan from an *already closed* loan's borrower + items. Both copy
+  `loan_photos` rows (same Storage file - delete only removes the file once
+  unreferenced).
+- **Interest reduction**: closing/rolling over with `interestCollected` below
+  the server-recomputed figure for the closure date requires `waiverReason`;
+  stored as `interest_calculated` / `interest_waived` /
+  `interest_waiver_reason`. `GET /loans/:id/interest-summary?asOf=` gives the
+  figure for a chosen date.
+- **Photos**: `controllers/photoController.js`, private `loan-photos` bucket,
+  signed URLs (1h). The browser compresses first (`utils/imageCompress.js`,
+  ≤120 KB WebP/JPEG); the server rejects >400 KB or non-image bytes. ID
+  documents are deliberately not stored.
+- `controllers/insightsController.js`: day book (`/reports/day-book`),
+  ageing, forecast, borrower scores (`utils/borrowerScore.js` - transparent
+  points per factor). `controllers/searchController.js`: `/api/search`.
 
 ### Frontend (`frontend/src`)
 
@@ -210,6 +233,12 @@ JS — controllers do the mapping manually field-by-field (no ORM/schema layer).
   `err.response.data.error` into a plain `Error`.
 - `pages/*.jsx` — one per route, own their data fetching (no global store —
   React state + effects per page).
+- `components/common/GlobalSearch.jsx` — inline on the Dashboard and as a
+  pop-up from the header; `hooks/useShortcuts.js` (single-key shortcuts,
+  ignored while typing or with a dialog open) is mounted in `AppShell`.
+  `?new=1` on `/loans` / `/borrowers` opens the create dialog
+  (`hooks/useOpenFromQuery.js`); `?repledge=1` on a loan page opens the
+  re-pledge form.
 - `components/<Domain>/*Modal.jsx` — create/edit modals per resource
   (Borrowers, Loans, Payments, Admin), built on the shared
   `components/common/Modal.jsx` shell.
@@ -273,6 +302,18 @@ that direction; don't introduce a generic SaaS blue/gray look.
   the attribute — that's why those must be defined in both the light `html{}`
   and dark `html[data-theme='dark']{}` blocks. Don't assume a dark value takes
   effect just because the light one does.
+- **Shared page building blocks** (use these, don't re-inline them):
+  `PageHeader` (back link, serif title, subtitle, actions) on every page;
+  `Segmented` for tabs/filters (`.seg`); `.facts`/`.fact-label`/`.fact-value`
+  for key figures on detail pages; `.section-title` for card/section
+  headings (sentence case); `EmptyState` (also via `DataTable`'s
+  `emptyMessage` + `emptyHint`); `useConfirm()` from `ConfirmDialog.jsx`
+  instead of `window.confirm`/`prompt` (supports an `input` for prompts);
+  `.btn-ghost` for tertiary actions. Primary buttons switch to the gold
+  accent in dark mode (ink-on-near-black was invisible).
+- **Tailwind class scanning**: never glue a utility to a template
+  expression (`` `sm:hidden${x}` ``) — the scanner can't extract it and the
+  class silently isn't generated. Keep a space before `${…}`.
 - **Loading states use skeletons, never a bare "Loading…"** — see
   `components/common/Skeleton.jsx` (`Skeleton`, `StatCardSkeleton`,
   `TableSkeleton`, `ListSkeleton`) and the `.skeleton` shimmer in `theme.css`.

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PageHeader from '../components/common/PageHeader.jsx';
 import { api } from '../services/api.js';
 import DataTable from '../components/common/DataTable.jsx';
 import { TableSkeleton } from '../components/common/Skeleton.jsx';
@@ -9,6 +10,7 @@ import StatusBadge from '../components/common/StatusBadge.jsx';
 import CardStatusBadge from '../components/common/CardStatusBadge.jsx';
 import LoanModal from '../components/Loans/LoanModal.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
+import { useOpenFromQuery } from '../hooks/useOpenFromQuery.js';
 
 const PAGE_SIZE = 20;
 
@@ -39,6 +41,7 @@ export default function LoansList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
+  useOpenFromQuery(() => setShowModal(true));
 
   async function load() {
     setLoading(true);
@@ -91,10 +94,11 @@ export default function LoansList() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div className="font-serif" style={{ fontSize: 26, fontWeight: 600 }}>Loans</div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ New Loan</button>
-      </div>
+      <PageHeader
+        title="Loans"
+        subtitle={total ? `${total} loans · newest first` : 'Every pledge loan, newest first.'}
+        actions={<button className="btn btn-primary" onClick={() => setShowModal(true)}>+ New loan</button>}
+      />
 
       <FilterBar
         fields={filterFields}

@@ -16,13 +16,21 @@ import Reports from './pages/Reports.jsx';
 import Accounts from './pages/Accounts.jsx';
 import PledgeForm from './pages/PledgeForm.jsx';
 import AdminSettings from './pages/AdminSettings.jsx';
+import DayBook from './pages/DayBook.jsx';
+import ActivityLog from './pages/ActivityLog.jsx';
 
 // bare: render without the nav shell (used by the printable pledge form).
 function ProtectedRoute({ children, bare }) {
   const { session, loading } = useAuth();
   const location = useLocation();
 
-  if (loading) return <div style={{ padding: 40 }}>Loading…</div>;
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center' }} aria-busy="true">
+        <div className="skeleton" style={{ width: 44, height: 44, borderRadius: 12 }} />
+      </div>
+    );
+  }
   if (!session) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
 
   return bare ? children : <AppShell>{children}</AppShell>;
@@ -44,6 +52,8 @@ export default function App() {
       <Route path="/storage" element={<ProtectedRoute><Storage /></ProtectedRoute>} />
       <Route path="/accounts" element={<ProtectedRoute><Accounts /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+      <Route path="/day-book" element={<ProtectedRoute><DayBook /></ProtectedRoute>} />
+      <Route path="/activity" element={<ProtectedRoute><ActivityLog /></ProtectedRoute>} />
       <Route path="/admin/settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

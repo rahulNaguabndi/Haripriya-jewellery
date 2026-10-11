@@ -1,6 +1,10 @@
 import { supabase } from '../config/supabaseClient.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { requireFields } from '../utils/validators.js';
+import { logActivity } from '../utils/activityLog.js';
+
+const describeTiers = (tiers) =>
+  (tiers || []).map((t) => `${t.minAmount}-${t.maxAmount ?? 'up'} @ ${t.interestRate}%`).join(', ');
 
 export async function getInterestConfig(req, res, next) {
   try {
@@ -69,6 +73,14 @@ export async function updateInterestConfig(req, res, next) {
       result = data;
     }
 
+    await logActivity(req, {
+      action: 'config.interest',
+      entityType: 'interest_config',
+      entityId: result.id,
+      summary: `Changed interest tiers to: ${describeTiers(tiers)}`,
+      details: { from: current?.tiers ?? null, to: tiers },
+    });
+
     res.json(result);
   } catch (err) {
     next(err);
@@ -120,6 +132,12 @@ export async function createAdminUser(req, res, next) {
       .single();
 
     if (error) throw new ApiError(400, error.message);
+    await logActivity(req, {
+      action: 'staff.create',
+      entityType: 'admin_user',
+      entityId: data.id,
+      summary: `Added staff login ${email} (${data.role})`,
+    });
     res.status(201).json(data);
   } catch (err) {
     next(err);

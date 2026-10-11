@@ -3,6 +3,9 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../services/api.js';
 import StorageVisual from '../components/Storage/StorageVisual.jsx';
 import { ListSkeleton } from '../components/common/Skeleton.jsx';
+import PageHeader from '../components/common/PageHeader.jsx';
+import Segmented from '../components/common/Segmented.jsx';
+import { useConfirm } from '../components/common/ConfirmDialog.jsx';
 
 const METAL_TYPES = ['Gold', 'Silver'];
 
@@ -12,33 +15,25 @@ export default function Storage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-        <div className="font-serif" style={{ fontSize: 26, fontWeight: 600 }}>Storage</div>
-        <div style={{ display: 'flex', gap: 6 }} role="tablist">
-          {[['visual', 'Lockers'], ['manage', 'Manage']].map(([key, label]) => (
-            <button
-              key={key}
-              role="tab"
-              aria-selected={tab === key}
-              className="btn"
-              onClick={() => setParams(key === 'manage' ? { tab: 'manage' } : {})}
-              style={{
-                background: tab === key ? 'var(--ink)' : 'var(--surface)',
-                color: tab === key ? '#fff' : 'var(--text)',
-                border: '1px solid var(--border)',
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <PageHeader
+        title="Storage"
+        subtitle="Where every pledged packet sits: locker, box and slot."
+        actions={
+          <Segmented
+            label="Storage view"
+            value={tab}
+            onChange={(key) => setParams(key === 'manage' ? { tab: 'manage' } : {})}
+            options={[{ value: 'visual', label: 'Lockers' }, { value: 'manage', label: 'Manage' }]}
+          />
+        }
+      />
       {tab === 'visual' ? <StorageVisual /> : <StorageManage />}
     </div>
   );
 }
 
 function StorageManage() {
+  const confirm = useConfirm();
   const [role, setRole] = useState(null);
   const [lockers, setLockers] = useState([]);
   const [boxes, setBoxes] = useState([]);
@@ -108,7 +103,12 @@ function StorageManage() {
   }
 
   async function editCapacity(locker) {
-    const input = prompt(`How many box slots does ${locker.name} hold? (blank = unknown)`, locker.box_capacity ?? '');
+    const input = await confirm({
+      title: `Box slots in ${locker.name}`,
+      message: 'How many boxes does this locker physically hold? Leave blank if unknown.',
+      input: { label: 'Box slots', type: 'number', min: 1, defaultValue: locker.box_capacity ?? '', placeholder: 'e.g. 100' },
+      confirmLabel: 'Save',
+    });
     if (input === null) return;
     try {
       await api.put(`/lockers/${locker.id}`, { boxCapacity: input.trim() === '' ? null : Number(input) });
@@ -119,7 +119,7 @@ function StorageManage() {
   }
 
   async function deleteLocker(id) {
-    if (!confirm('Delete this locker?')) return;
+    if (!(await confirm({ title: 'Delete this locker?', message: 'Only empty lockers can be deleted. Boxes must be moved or removed first.', confirmLabel: 'Delete locker', danger: true }))) return;
     try {
       await api.delete(`/lockers/${id}`);
       load();
@@ -159,7 +159,7 @@ function StorageManage() {
   }
 
   async function deleteBox(id) {
-    if (!confirm('Delete this box?')) return;
+    if (!(await confirm({ title: 'Delete this box?', message: 'Packets in its range will show as “not in any box” until another box covers them.', confirmLabel: 'Delete box', danger: true }))) return;
     try {
       await api.delete(`/boxes/${id}`);
       load();
@@ -175,7 +175,7 @@ function StorageManage() {
       {error && <div style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 16 }}>{error}</div>}
 
       <div className="card" style={{ padding: 20, marginBottom: 24 }}>
-        <div className="font-serif" style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Lockers</div>
+        <h2 className="section-title">Lockers</h2>
         {lockers.map((l) => (
           <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--divider)' }}>
             <div>
@@ -226,7 +226,7 @@ function StorageManage() {
       </div>
 
       <div className="card" style={{ padding: 20 }}>
-        <div className="font-serif" style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Boxes</div>
+        <h2 className="section-title">Boxes</h2>
         {boxOverlapWarning && (
           <div style={{ fontSize: 12.5, color: 'var(--warning)', marginBottom: 10 }}>{boxOverlapWarning}</div>
         )}

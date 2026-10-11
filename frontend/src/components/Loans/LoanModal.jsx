@@ -35,7 +35,10 @@ function itemFromRow(row) {
   };
 }
 
-export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
+// repledgeFrom: a closed loan whose borrower + items prefill a brand-new
+// loan (returning customer pledging the same ornaments again). Only the
+// amount and dates need filling in.
+export default function LoanModal({ loan, borrowerId, repledgeFrom, onClose, onSaved }) {
   const [form, setForm] = useState(
     loan
       ? {
@@ -48,12 +51,18 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
           interestRate: loan.interest_rate,
           cardGiven: !!loan.card_given,
         }
+      : repledgeFrom
+      ? {
+          ...empty,
+          borrowerId: repledgeFrom.borrower_id,
+          items: repledgeFrom.loan_items?.length ? repledgeFrom.loan_items.map(itemFromRow) : [{ ...emptyItem }],
+        }
       : { ...empty, borrowerId: borrowerId || '' }
   );
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [showBorrowerModal, setShowBorrowerModal] = useState(false);
-  const [borrowerQuery, setBorrowerQuery] = useState(loan?.borrowers?.name || '');
+  const [borrowerQuery, setBorrowerQuery] = useState(loan?.borrowers?.name || repledgeFrom?.borrowers?.name || '');
   const [borrowerOptions, setBorrowerOptions] = useState([]);
   const [showBorrowerDropdown, setShowBorrowerDropdown] = useState(false);
   const [huidMatches, setHuidMatches] = useState({});
@@ -82,11 +91,11 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
   }
 
   useEffect(() => {
-    if (borrowerId || loan) return;
+    if (borrowerId || loan || repledgeFrom) return;
     const timeout = setTimeout(() => searchBorrowers(borrowerQuery), 250);
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [borrowerQuery, borrowerId, loan]);
+  }, [borrowerQuery, borrowerId, loan, repledgeFrom]);
 
   function selectBorrower(b) {
     set('borrowerId', b.id);
@@ -144,6 +153,7 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
         dueDate: form.dueDate || null,
         interestRate: form.interestRate === '' ? undefined : Number(form.interestRate),
         cardGiven: form.cardGiven,
+        repledgedFromLoanId: repledgeFrom?.id,
       };
       const saved = loan ? await api.put(`/loans/${loan.id}`, payload) : await api.post('/loans', payload);
       if (printAfter) {
@@ -159,8 +169,15 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
   }
 
   return (
-    <Modal title={loan ? 'Edit Loan' : 'New Loan'} onClose={onClose} width={600}>
+    <Modal title={loan ? 'Edit Loan' : repledgeFrom ? 'Re-pledge items' : 'New Loan'} onClose={onClose} width={600}>
       <form onSubmit={handleSubmit}>
+        {repledgeFrom && (
+          <div style={{ fontSize: 13, background: 'var(--gold-soft, var(--hover))', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 12px', marginBottom: 16, lineHeight: 1.5 }}>
+            Copied borrower and items from <strong className="num">{repledgeFrom.loan_number}</strong>
+            {repledgeFrom.closure_date ? <> (closed {new Date(repledgeFrom.closure_date).toLocaleDateString('en-IN')})</> : null}.
+            Re-check the items, then enter the <strong>loan amount</strong>. Photos carry over too.
+          </div>
+        )}
         {!borrowerId && (
           <div className="field" style={{ position: 'relative' }}>
             <label>Borrower *</label>
@@ -170,7 +187,7 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
                 style={{ flex: 1 }}
                 placeholder="Type to search borrowers…"
                 value={borrowerQuery}
-                disabled={!!loan}
+                disabled={!!loan || !!repledgeFrom}
                 onFocus={() => setShowBorrowerDropdown(true)}
                 onChange={(e) => {
                   setBorrowerQuery(e.target.value);
@@ -178,7 +195,7 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
                   setShowBorrowerDropdown(true);
                 }}
               />
-              {!loan && (
+              {!loan && !repledgeFrom && (
                 <button type="button" className="btn btn-secondary" onClick={() => setShowBorrowerModal(true)}>
                   + New Borrower
                 </button>
@@ -297,11 +314,28 @@ export default function LoanModal({ loan, borrowerId, onClose, onSaved }) {
             {item.huid && item.huid.length !== 6 && (
               <div style={{ fontSize: 11.5, color: 'var(--warning)', marginBottom: 8 }}>HUID is 6 characters ({item.huid.length} entered).</div>
             )}
-            {huidMatches[i]?.length > 0 && (
-              <div style={{ fontSize: 12, color: 'var(--danger)', background: 'var(--danger-soft)', borderRadius: 8, padding: '8px 10px', marginBottom: 8 }}>
-                This HUID is already on {huidMatches[i].map((m) => `${m.loanNumber} (${m.borrowerName || 'unknown'}, ${m.status})`).join('; ')}. Check for a double pledge.
-              </div>
-            )}
+            {(() => {
+              // An open loan with the same HUID is a possible double pledge;
+              // a closed one just means the piece was pledged here before.
+              const matches = huidMatches[i] || [];
+              const open = matches.filter((m) => m.status !== 'closed');
+              const closed = matches.filter((m) => m.status === 'closed' && m.loanId !== repledgeFrom?.id);
+              const describe = (list) => list.map((m) => `${m.loanNumber} (${m.borrowerName || 'unknown'})`).join('; ');
+              return (
+                <>
+                  {open.length > 0 && (
+                    <div style={{ fontSize: 12, color: 'var(--danger)', background: 'var(--danger-soft)', borderRadius: 8, padding: '8px 10px', marginBottom: 8 }}>
+                      This HUID is on an open loan: {describe(open)}. Check for a double pledge.
+                    </div>
+                  )}
+                  {closed.length > 0 && (
+                    <div style={{ fontSize: 12, color: 'var(--text-3)', background: 'var(--hover)', borderRadius: 8, padding: '8px 10px', marginBottom: 8 }}>
+                      Pledged here before on {describe(closed)} (closed).
+                    </div>
+                  )}
+                </>
+              );
+            })()}
             {form.items.length > 1 && (
               <button type="button" className="btn btn-danger" onClick={() => removeItem(i)}>Remove Item</button>
             )}

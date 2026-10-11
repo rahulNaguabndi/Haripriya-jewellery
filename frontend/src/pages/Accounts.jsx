@@ -6,6 +6,8 @@ import DataTable from '../components/common/DataTable.jsx';
 import StatusBadge from '../components/common/StatusBadge.jsx';
 import { TableSkeleton } from '../components/common/Skeleton.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
+import PageHeader from '../components/common/PageHeader.jsx';
+import Segmented from '../components/common/Segmented.jsx';
 
 const METALS = [
   { key: 'all', label: 'All' },
@@ -96,15 +98,15 @@ export default function Accounts() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-        <div>
-          <div className="font-serif" style={{ fontSize: 26, fontWeight: 600 }}>Accounts</div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loans given, money received and interest collected, for your accountant.</div>
-        </div>
-        <button className="btn btn-primary" onClick={exportExcel} disabled={exporting || loading}>
-          {exporting ? 'Preparing…' : '⇩ Export to Excel'}
-        </button>
-      </div>
+      <PageHeader
+        title="Accounts"
+        subtitle={`Loans given, money received and interest collected · ${formatDate(period.from)} – ${formatDate(period.to)}`}
+        actions={
+          <button className="btn btn-primary" onClick={exportExcel} disabled={exporting || loading}>
+            {exporting ? 'Preparing…' : 'Export to Excel'}
+          </button>
+        }
+      />
 
       <div className="card" style={{ padding: 16, marginBottom: 18, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <div className="field" style={{ marginBottom: 0, flex: '1 1 160px' }}>
@@ -128,25 +130,7 @@ export default function Accounts() {
           <label>To</label>
           <input type="date" value={period.to} min={period.from} onChange={(e) => e.target.value && setPeriod((p) => ({ ...p, to: e.target.value }))} />
         </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} role="tablist" aria-label="Metal">
-          {METALS.map((m) => (
-            <button
-              key={m.key}
-              role="tab"
-              aria-selected={metal === m.key}
-              onClick={() => setMetal(m.key)}
-              className="btn"
-              style={{
-                background: metal === m.key ? 'var(--ink)' : 'var(--surface)',
-                color: metal === m.key ? '#fff' : 'var(--text)',
-                border: '1px solid var(--border)',
-                padding: '9px 14px',
-              }}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
+        <Segmented label="Metal" value={metal} onChange={setMetal} options={METALS.map((m) => ({ value: m.key, label: m.label }))} />
       </div>
 
       {error && <div style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 12 }}>{error}</div>}
@@ -158,25 +142,20 @@ export default function Accounts() {
         <StatCard label="Outstanding at end" value={formatCurrency(s?.principalOutstanding)} sublabel={s && `+ ${formatCurrency(s.accruedUnrealised)} accrued`} loading={loading} />
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        {[['loans', `Loans (${loans.length})`], ['transactions', `Transactions (${transactions.length})`]].map(([key, label]) => (
-          <button
-            key={key}
-            className="btn btn-secondary"
-            onClick={() => setView(key)}
-            style={view === key ? { borderColor: 'var(--gold)', boxShadow: 'inset 0 -2px 0 var(--gold)' } : undefined}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        label="Ledger view"
+        value={view}
+        onChange={setView}
+        style={{ marginBottom: 12 }}
+        options={[{ value: 'loans', label: `Loans · ${loans.length}` }, { value: 'transactions', label: `Transactions · ${transactions.length}` }]}
+      />
 
       {loading ? (
         <TableSkeleton columns={8} rows={8} />
       ) : view === 'loans' ? (
-        <DataTable columns={loanColumns} rows={loans.map((r) => ({ ...r, id: r.loanId }))} onRowClick={(r) => navigate(`/loans/${r.loanId}`)} emptyMessage="No loans in this period." />
+        <DataTable columns={loanColumns} rows={loans.map((r) => ({ ...r, id: r.loanId }))} onRowClick={(r) => navigate(`/loans/${r.loanId}`)} emptyMessage="No loans in this period" emptyHint="Pick an earlier financial year, or widen the dates." />
       ) : (
-        <DataTable columns={txColumns} rows={transactions} emptyMessage="No transactions in this period." />
+        <DataTable columns={txColumns} rows={transactions} emptyMessage="No transactions in this period" emptyHint="Disbursements, payments and closures in the chosen dates appear here." />
       )}
 
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 12 }}>

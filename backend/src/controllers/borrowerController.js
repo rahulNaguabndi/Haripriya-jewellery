@@ -3,6 +3,9 @@ import { ApiError } from '../middleware/errorHandler.js';
 import { requireFields } from '../utils/validators.js';
 import { calculateCompoundInterest } from '../utils/interestCalculator.js';
 import { getActiveInterestConfig } from '../utils/interestConfig.js';
+import { logActivity, diffFields } from '../utils/activityLog.js';
+
+const BORROWER_FIELDS = ['name', 'phone', 'email', 'address', 'village', 'mandal', 'district', 'city', 'state', 'pincode', 'aadhar_or_id', 'care_of'];
 
 export async function createBorrower(req, res, next) {
   try {
@@ -31,6 +34,13 @@ export async function createBorrower(req, res, next) {
       .single();
 
     if (error) throw new ApiError(400, error.message);
+    await logActivity(req, {
+      action: 'borrower.create',
+      entityType: 'borrower',
+      entityId: data.id,
+      borrowerId: data.id,
+      summary: `Added borrower ${data.name}`,
+    });
     res.status(201).json(data);
   } catch (err) {
     next(err);
@@ -174,30 +184,33 @@ export async function getBorrower(req, res, next) {
 export async function updateBorrower(req, res, next) {
   try {
     const { name, phone, email, address, village, mandal, district, city, state, pincode, aadharOrId, careOf } = req.body;
+    const update = { name, phone, email, address, village, mandal, district, city, state, pincode, aadhar_or_id: aadharOrId, care_of: careOf };
+
+    const { data: before } = await supabase.from('borrowers').select('*').eq('id', req.params.id).maybeSingle();
 
     const { data, error } = await supabase
       .from('borrowers')
-      .update({
-        name,
-        phone,
-        email,
-        address,
-        village,
-        mandal,
-        district,
-        city,
-        state,
-        pincode,
-        aadhar_or_id: aadharOrId,
-        care_of: careOf,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ ...update, updated_at: new Date().toISOString() })
       .eq('id', req.params.id)
       .select()
       .maybeSingle();
 
     if (error) throw new ApiError(400, error.message);
     if (!data) throw new ApiError(404, 'Borrower not found');
+
+    const changes = diffFields(before, update, BORROWER_FIELDS);
+    if (Object.keys(changes).length) {
+      // Aadhaar/ID values are never written into the log, only that it changed.
+      if (changes.aadhar_or_id) changes.aadhar_or_id = { changed: true };
+      await logActivity(req, {
+        action: 'borrower.update',
+        entityType: 'borrower',
+        entityId: data.id,
+        borrowerId: data.id,
+        summary: `Edited borrower ${data.name}: ${Object.keys(changes).map((f) => f.replace(/_/g, ' ')).join(', ')}`,
+        details: changes,
+      });
+    }
     res.json(data);
   } catch (err) {
     next(err);
@@ -215,6 +228,13 @@ export async function deleteBorrower(req, res, next) {
 
     if (error) throw new ApiError(400, error.message);
     if (!data) throw new ApiError(404, 'Borrower not found');
+    await logActivity(req, {
+      action: 'borrower.delete',
+      entityType: 'borrower',
+      entityId: data.id,
+      borrowerId: data.id,
+      summary: `Deleted borrower ${data.name}`,
+    });
     res.json({ success: true });
   } catch (err) {
     next(err);

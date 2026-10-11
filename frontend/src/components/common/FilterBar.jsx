@@ -11,7 +11,7 @@ export default function FilterBar({ fields, values, onChange, onReset, alwaysOpe
     <div className="mb-4">
       <button
         type="button"
-        className={`btn btn-secondary sm:hidden${alwaysOpen ? ' hidden' : ''}`}
+        className={`btn btn-secondary sm:hidden ${alwaysOpen ? 'hidden' : ''}`}
         style={{ width: '100%', justifyContent: 'space-between', marginBottom: open ? 8 : 0 }}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}

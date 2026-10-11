@@ -41,7 +41,7 @@ export default function BusinessProfileCard({ canEdit }) {
 
   return (
     <div className="card" style={{ padding: 22, marginBottom: 24 }}>
-      <div className="font-serif" style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>Business Profile</div>
+      <h2 className="section-title" style={{ marginBottom: 4 }}>Business profile</h2>
       <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 14 }}>
         Printed on the pledge form and used in WhatsApp/SMS notices.
       </div>

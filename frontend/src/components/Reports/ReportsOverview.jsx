@@ -25,10 +25,10 @@ const STATUS_META = {
   defaulted: { label: 'Defaulted', colorKey: 'danger' },
 };
 
-function ChartCard({ title, subtitle, children, footer, height = 260 }) {
+export function ChartCard({ title, subtitle, children, footer, height = 260 }) {
   return (
     <div className="card" style={{ padding: 20 }}>
-      <div className="font-serif" style={{ fontSize: 16, fontWeight: 600 }}>{title}</div>
+      <h2 className="section-title" style={{ margin: 0 }}>{title}</h2>
       {subtitle && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, marginBottom: 8 }}>{subtitle}</div>}
       <div style={{ height, marginTop: subtitle ? 0 : 12 }}>{children}</div>
       {footer}
@@ -36,7 +36,7 @@ function ChartCard({ title, subtitle, children, footer, height = 260 }) {
   );
 }
 
-function DonutLegend({ items }) {
+export function DonutLegend({ items }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', justifyContent: 'center', marginTop: 12 }}>
       {items.map((d) => (
@@ -49,7 +49,7 @@ function DonutLegend({ items }) {
   );
 }
 
-function ChartTooltip({ active, payload, label, colors, valueFormatter }) {
+export function ChartTooltip({ active, payload, label, colors, valueFormatter }) {
   if (!active || !payload || !payload.length) return null;
   return (
     <div
@@ -73,7 +73,7 @@ function ChartTooltip({ active, payload, label, colors, valueFormatter }) {
   );
 }
 
-function ChartSkeleton({ height = 260 }) {
+export function ChartSkeleton({ height = 260 }) {
   return (
     <div className="card" style={{ padding: 20 }}>
       <Skeleton width="40%" height={16} style={{ marginBottom: 16 }} />

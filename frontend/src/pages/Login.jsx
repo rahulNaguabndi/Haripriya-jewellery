@@ -28,75 +28,63 @@ export default function Login() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        position: 'relative',
-        padding: 16,
-        background:
-          'radial-gradient(60% 55% at 50% 0%, var(--gold-soft) 0%, transparent 60%), var(--bg)',
-      }}
-    >
-      <ThemeToggle style={{ position: 'absolute', top: 24, right: 24 }} />
-      <form
-        onSubmit={handleSubmit}
-        className="card w-[380px] max-w-[92vw] px-6 py-8 sm:px-9 sm:py-10"
-        style={{ boxShadow: 'var(--shadow-lg)' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 8,
-              background: 'var(--ink)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <div className="font-serif" style={{ fontSize: 15, color: '#F3E9D2' }}>H</div>
-          </div>
-          <div className="font-serif" style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em' }}>
-            Haripriya Jewels
-          </div>
+    <div className="login-shell">
+      <aside className="login-brand" aria-hidden>
+        <div className="shell-brand">
+          <span className="shell-mark">H</span>
+          <span className="shell-name">Haripriya Jewels</span>
         </div>
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 28 }}>Lending management — staff sign in</div>
+        <div>
+          <div className="login-tagline">Every pledge, kept and counted.</div>
+          <div className="login-sub">Loans, lockers, notices and accounts for the counter, in one place.</div>
+        </div>
+        <div className="login-foot">Staff access only</div>
+      </aside>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <main className="login-main">
+        <ThemeToggle style={{ position: 'absolute', top: 20, right: 20 }} />
+        <form onSubmit={handleSubmit} className="login-form">
+          <div className="shell-brand login-mobile-brand">
+            <span className="shell-mark">H</span>
+            <span className="shell-name">Haripriya Jewels</span>
+          </div>
+          <h1 className="page-title" style={{ fontSize: 32 }}>Sign in</h1>
+          <div className="page-subtitle" style={{ marginBottom: 26 }}>Use the staff email you were given.</div>
+
           <div className="field">
-            <label>Email</label>
+            <label htmlFor="login-email">Email</label>
             <input
+              id="login-email"
               type="email"
               required
+              autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="staff@haripriyajewels.com"
             />
           </div>
           <div className="field">
-            <label>Password</label>
+            <label htmlFor="login-password">Password</label>
             <input
+              id="login-password"
               type="password"
               required
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
             />
           </div>
           {error && (
-            <div style={{ fontSize: 12, color: 'var(--danger)', background: 'var(--danger-soft)', borderRadius: 6, padding: '8px 10px' }}>
+            <div role="alert" style={{ fontSize: 13, color: 'var(--danger)', background: 'var(--danger-soft)', borderRadius: 8, padding: '9px 12px', marginBottom: 12 }}>
               {error}
             </div>
           )}
-          <button type="submit" className="btn btn-primary" disabled={loading} style={{ marginTop: 6, padding: 11 }}>
+          <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%', padding: 12, marginTop: 4 }}>
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
-        </div>
-      </form>
+        </form>
+      </main>
     </div>
   );
 }

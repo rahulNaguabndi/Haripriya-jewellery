@@ -4,6 +4,7 @@ import { requireFields, generateLoanNumber } from '../utils/validators.js';
 import { calculateCompoundInterest } from '../utils/interestCalculator.js';
 import { getActiveInterestConfig, resolveInterestRate } from '../utils/interestConfig.js';
 import { getTodayRate, getLatestRate } from '../utils/dailyRates.js';
+import { logActivity, diffFields, inr } from '../utils/activityLog.js';
 
 async function nextLoanNumber() {
   const today = new Date();
@@ -30,6 +31,56 @@ async function fetchPayments(loanId) {
     .order('payment_date', { ascending: true });
   if (error) throw new ApiError(400, error.message);
   return data;
+}
+
+// The interest the system would charge if the loan were settled on
+// `asOfDate` - the figure staff quote. Stored alongside what was actually
+// collected so any negotiated reduction is visible later.
+async function calculatedInterestOn(loan, asOfDate) {
+  const payments = await fetchPayments(loan.id);
+  const config = await getActiveInterestConfig();
+  return calculateCompoundInterest({
+    principal: loan.loan_amount,
+    annualRate: loan.interest_rate,
+    loanDate: loan.loan_date,
+    partialPayments: payments.map((p) => ({ amount: p.amount, paymentDate: p.payment_date })),
+    tiers: config?.tiers || [],
+    asOfDate: new Date(asOfDate),
+  }).totalInterestAccrued;
+}
+
+// Collecting less than the calculated interest is allowed (e.g. the ~7-day
+// grace after the 1-year compounding mark), but only with a reason, which
+// is kept on the loan and in the activity log.
+function resolveWaiver(calculated, collected, reason) {
+  const waived = round2(Math.max(0, calculated - Number(collected)));
+  const cleanReason = String(reason || '').trim();
+  if (waived > 0 && !cleanReason) {
+    throw new ApiError(
+      400,
+      `Interest collected is ${inr(waived)} less than the calculated ${inr(calculated)}. Give a reason for the reduction.`
+    );
+  }
+  return {
+    interest_calculated: calculated,
+    interest_waived: waived,
+    interest_waiver_reason: waived > 0 ? cleanReason : null,
+  };
+}
+
+// Re-pledge/rollover: the same ornaments, so their photos carry forward.
+// Rows point at the same Storage files (photo deletion only removes a file
+// once no loan references it any more).
+async function copyPhotos(fromLoanId, toLoanId, userId) {
+  const { data, error } = await supabase
+    .from('loan_photos')
+    .select('storage_path, content_type, size_bytes, width, height, caption')
+    .eq('loan_id', fromLoanId);
+  if (error || !data?.length) return;
+  const { error: insertError } = await supabase
+    .from('loan_photos')
+    .insert(data.map((p) => ({ ...p, loan_id: toLoanId, uploaded_by: userId })));
+  if (insertError) console.warn('[photos] could not carry photos forward:', insertError.message);
 }
 
 function validateItems(items) {
@@ -95,8 +146,23 @@ async function replaceLoanItems(loanId, items) {
 export async function createLoan(req, res, next) {
   try {
     requireFields(req.body, ['borrowerId', 'items', 'loanAmount', 'loanDate']);
-    const { borrowerId, items, loanAmount, loanDate, dueDate, interestRate, cardGiven } = req.body;
+    const { borrowerId, items, loanAmount, loanDate, dueDate, interestRate, cardGiven, repledgedFromLoanId } = req.body;
     validateItems(items);
+
+    let repledgeSource = null;
+    if (repledgedFromLoanId) {
+      const { data, error: sourceError } = await supabase
+        .from('loans')
+        .select('id, loan_number, status')
+        .eq('id', repledgedFromLoanId)
+        .maybeSingle();
+      if (sourceError) throw new ApiError(400, sourceError.message);
+      if (!data) throw new ApiError(404, 'The loan being re-pledged was not found');
+      if (data.status !== 'closed') {
+        throw new ApiError(400, `${data.loan_number} is still open - use Roll over instead of re-pledging.`);
+      }
+      repledgeSource = data;
+    }
 
     const { data: borrower, error: borrowerError } = await supabase
       .from('borrowers')
@@ -128,6 +194,7 @@ export async function createLoan(req, res, next) {
         interest_rate: appliedRate,
         card_given: !!cardGiven,
         metal_rate: rateRow?.rate_per_gram ?? null,
+        repledged_from_loan_id: repledgeSource?.id ?? null,
         created_by: req.user.id,
       })
       .select()
@@ -135,6 +202,20 @@ export async function createLoan(req, res, next) {
     if (error) throw new ApiError(400, error.message);
 
     const loanItems = await replaceLoanItems(loan.id, items);
+    if (repledgeSource) await copyPhotos(repledgeSource.id, loan.id, req.user.id);
+
+    await logActivity(req, {
+      action: repledgeSource ? 'loan.repledge' : 'loan.create',
+      entityType: 'loan',
+      entityId: loan.id,
+      loanId: loan.id,
+      borrowerId,
+      summary: repledgeSource
+        ? `Re-pledged items from ${repledgeSource.loan_number} as ${loan.loan_number} for ${inr(loanAmount)}`
+        : `Created loan ${loan.loan_number} for ${inr(loanAmount)}`,
+      details: { loanAmount, loanDate, interestRate: appliedRate, itemCount: items.length },
+    });
+
     res.status(201).json({ ...loan, loan_items: loanItems });
   } catch (err) {
     next(err);
@@ -212,7 +293,22 @@ export async function getLoan(req, res, next) {
       .eq('previous_loan_id', loan.id)
       .maybeSingle();
 
-    res.json({ ...loan, partialPayments: payments, interest, previousLoan, rolledInto });
+    let repledgedFrom = null;
+    if (loan.repledged_from_loan_id) {
+      const { data } = await supabase
+        .from('loans')
+        .select('id, loan_number, loan_date, closure_date')
+        .eq('id', loan.repledged_from_loan_id)
+        .maybeSingle();
+      repledgedFrom = data;
+    }
+    const { data: repledges } = await supabase
+      .from('loans')
+      .select('id, loan_number, loan_date')
+      .eq('repledged_from_loan_id', loan.id)
+      .order('loan_date', { ascending: false });
+
+    res.json({ ...loan, partialPayments: payments, interest, previousLoan, rolledInto, repledgedFrom, repledges: repledges || [] });
   } catch (err) {
     next(err);
   }
@@ -231,6 +327,14 @@ export async function updateLoan(req, res, next) {
     };
     if (cardGiven !== undefined) update.card_given = !!cardGiven;
     if (cardReturned !== undefined) update.card_returned = !!cardReturned;
+
+    const { data: before, error: beforeError } = await supabase
+      .from('loans')
+      .select('*')
+      .eq('id', req.params.id)
+      .maybeSingle();
+    if (beforeError) throw new ApiError(400, beforeError.message);
+    if (!before) throw new ApiError(404, 'Loan not found');
 
     const { data, error } = await supabase
       .from('loans')
@@ -255,6 +359,25 @@ export async function updateLoan(req, res, next) {
       loanItems = existingItems;
     }
 
+    const changes = diffFields(before, update, ['loan_amount', 'loan_date', 'due_date', 'interest_rate', 'card_given', 'card_returned']);
+    if (items !== undefined) changes.items = { count: items.length };
+    const changed = Object.keys(changes);
+    if (changed.length) {
+      const described = changed
+        .map((field) => (field === 'items' ? 'items' : `${field.replace(/_/g, ' ')} ${changes[field].from ?? '-'} -> ${changes[field].to ?? '-'}`))
+        .join(', ');
+      const cardOnly = changed.length === 1 && changed[0] === 'card_returned';
+      await logActivity(req, {
+        action: cardOnly ? 'loan.card_returned' : 'loan.update',
+        entityType: 'loan',
+        entityId: data.id,
+        loanId: data.id,
+        borrowerId: data.borrower_id,
+        summary: cardOnly ? `Marked card returned on ${data.loan_number}` : `Edited ${data.loan_number}: ${described}`,
+        details: changes,
+      });
+    }
+
     res.json({ ...data, loan_items: loanItems });
   } catch (err) {
     next(err);
@@ -270,7 +393,7 @@ export async function updateLoan(req, res, next) {
 export async function rolloverLoan(req, res, next) {
   try {
     requireFields(req.body, ['closureDate', 'interestCollected', 'loanAmount', 'loanDate']);
-    const { closureDate, interestCollected, loanAmount, loanDate, dueDate, interestRate, items, cardGiven } = req.body;
+    const { closureDate, interestCollected, loanAmount, loanDate, dueDate, interestRate, items, cardGiven, waiverReason } = req.body;
 
     const { data: oldLoan, error: oldLoanError } = await supabase
       .from('loans')
@@ -284,12 +407,15 @@ export async function rolloverLoan(req, res, next) {
       throw new ApiError(400, 'Card must be marked returned before rolling over this loan.');
     }
 
+    const waiver = resolveWaiver(await calculatedInterestOn(oldLoan, closureDate), interestCollected, waiverReason);
+
     const { error: closeError } = await supabase
       .from('loans')
       .update({
         status: 'closed',
         closure_date: closureDate,
         interest_collected: interestCollected,
+        ...waiver,
         updated_at: new Date().toISOString(),
       })
       .eq('id', oldLoan.id);
@@ -332,6 +458,21 @@ export async function rolloverLoan(req, res, next) {
     if (newLoanError) throw new ApiError(400, newLoanError.message);
 
     const loanItems = await replaceLoanItems(newLoan.id, newItems);
+    await copyPhotos(oldLoan.id, newLoan.id, req.user.id);
+
+    await logActivity(req, {
+      action: 'loan.rollover',
+      entityType: 'loan',
+      entityId: newLoan.id,
+      loanId: oldLoan.id,
+      borrowerId: oldLoan.borrower_id,
+      summary:
+        `Rolled over ${oldLoan.loan_number} into ${newLoan.loan_number}: interest ${inr(interestCollected)} collected, new amount ${inr(loanAmount)}` +
+        (waiver.interest_waived > 0 ? ` (${inr(waiver.interest_waived)} reduced: ${waiver.interest_waiver_reason})` : ''),
+      details: { oldLoanId: oldLoan.id, newLoanId: newLoan.id, closureDate, interestCollected, loanAmount, loanDate, ...waiver },
+    });
+    if (waiver.interest_waived > 0) await logWaiver(req, oldLoan, waiver, interestCollected);
+
     res.status(201).json({ ...newLoan, loan_items: loanItems });
   } catch (err) {
     next(err);
@@ -346,21 +487,22 @@ export async function updateLoanStatus(req, res, next) {
       throw new ApiError(400, `status must be one of: ${validStatuses.join(', ')}`);
     }
 
-    const { closureDate, interestCollected, cardReturned } = req.body;
+    const { closureDate, interestCollected, cardReturned, waiverReason } = req.body;
     const update = { status: req.body.status, updated_at: new Date().toISOString() };
+
+    const { data: existing, error: existingError } = await supabase
+      .from('loans')
+      .select('*')
+      .eq('id', req.params.id)
+      .maybeSingle();
+    if (existingError) throw new ApiError(400, existingError.message);
+    if (!existing) throw new ApiError(404, 'Loan not found');
 
     if (req.body.status === 'closed') {
       requireFields(req.body, ['closureDate', 'interestCollected']);
       update.closure_date = closureDate;
       update.interest_collected = interestCollected;
-
-      const { data: existing, error: existingError } = await supabase
-        .from('loans')
-        .select('card_given, card_returned')
-        .eq('id', req.params.id)
-        .maybeSingle();
-      if (existingError) throw new ApiError(400, existingError.message);
-      if (!existing) throw new ApiError(404, 'Loan not found');
+      Object.assign(update, resolveWaiver(await calculatedInterestOn(existing, closureDate), interestCollected, waiverReason));
 
       const willHaveCardReturned = cardReturned !== undefined ? !!cardReturned : existing.card_returned;
       if (existing.card_given && !willHaveCardReturned) {
@@ -378,10 +520,46 @@ export async function updateLoanStatus(req, res, next) {
 
     if (error) throw new ApiError(400, error.message);
     if (!data) throw new ApiError(404, 'Loan not found');
+
+    if (req.body.status === 'closed') {
+      await logActivity(req, {
+        action: 'loan.close',
+        entityType: 'loan',
+        entityId: data.id,
+        loanId: data.id,
+        borrowerId: data.borrower_id,
+        summary: `Closed ${data.loan_number} on ${closureDate}: interest ${inr(interestCollected)} collected`,
+        details: { closureDate, interestCollected, previousStatus: existing.status },
+      });
+      if (update.interest_waived > 0) await logWaiver(req, data, update, interestCollected);
+    } else if (existing.status !== data.status) {
+      await logActivity(req, {
+        action: 'loan.status',
+        entityType: 'loan',
+        entityId: data.id,
+        loanId: data.id,
+        borrowerId: data.borrower_id,
+        summary: `Changed ${data.loan_number} status from ${existing.status} to ${data.status}`,
+        details: { from: existing.status, to: data.status },
+      });
+    }
+
     res.json(data);
   } catch (err) {
     next(err);
   }
+}
+
+function logWaiver(req, loan, waiver, interestCollected) {
+  return logActivity(req, {
+    action: 'loan.interest_waived',
+    entityType: 'loan',
+    entityId: loan.id,
+    loanId: loan.id,
+    borrowerId: loan.borrower_id,
+    summary: `Reduced interest on ${loan.loan_number} by ${inr(waiver.interest_waived)} (calculated ${inr(waiver.interest_calculated)}, collected ${inr(interestCollected)}): ${waiver.interest_waiver_reason}`,
+    details: { ...waiver, interest_collected: interestCollected },
+  });
 }
 
 export async function getLoanInterestSummary(req, res, next) {
@@ -395,6 +573,9 @@ export async function getLoanInterestSummary(req, res, next) {
     if (error) throw new ApiError(400, error.message);
     if (!loan) throw new ApiError(404, 'Loan not found');
 
+    // ?asOf=YYYY-MM-DD: the figure for a chosen settlement date (the
+    // close/rollover dialogs quote interest for the date being entered).
+    if (req.query.asOf && !/^\d{4}-\d{2}-\d{2}$/.test(req.query.asOf)) throw new ApiError(400, 'asOf must be YYYY-MM-DD');
     const payments = await fetchPayments(loan.id);
     const config = await getActiveInterestConfig();
 
@@ -404,6 +585,7 @@ export async function getLoanInterestSummary(req, res, next) {
       loanDate: loan.loan_date,
       partialPayments: payments.map((p) => ({ amount: p.amount, paymentDate: p.payment_date })),
       tiers: config?.tiers || [],
+      asOfDate: req.query.asOf ? new Date(req.query.asOf) : new Date(),
     });
 
     const actualInterestCollected = Math.max(0, loan.total_payment_received - (loan.loan_amount - interest.principalRemaining));
@@ -419,6 +601,8 @@ export async function getLoanInterestSummary(req, res, next) {
       expectedInterest: interest.totalInterestAccrued,
       actualInterestCollected,
       interestDifference: round2(interest.totalInterestAccrued - actualInterestCollected),
+      principalRemaining: interest.principalRemaining,
+      totalAmountDue: interest.totalAmountDue,
       status: loan.status,
       partialPayments: payments,
     });
@@ -496,6 +680,13 @@ export async function setHuidVerification(req, res, next) {
       .select()
       .single();
     if (error) throw new ApiError(400, error.message);
+    await logActivity(req, {
+      action: verified ? 'item.huid_verified' : 'item.huid_unverified',
+      entityType: 'loan_item',
+      entityId: item.id,
+      loanId: req.params.id,
+      summary: verified ? `Recorded HUID ${item.huid} as verified in BIS CARE${note ? `: ${note}` : ''}` : `Cleared HUID ${item.huid} verification`,
+    });
     res.json(data);
   } catch (err) {
     next(err);

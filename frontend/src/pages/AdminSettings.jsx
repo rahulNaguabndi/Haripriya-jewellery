@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react';
 import { api } from '../services/api.js';
 import AdminUserModal from '../components/Admin/AdminUserModal.jsx';
 import BusinessProfileCard from '../components/Admin/BusinessProfileCard.jsx';
+import PageHeader from '../components/common/PageHeader.jsx';
+import Segmented from '../components/common/Segmented.jsx';
+import { ListSkeleton, Skeleton } from '../components/common/Skeleton.jsx';
+import { useConfirm } from '../components/common/ConfirmDialog.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { ACCENT_PRESETS } from '../theme/accents.js';
 
@@ -30,6 +34,7 @@ const BRAND_TOKENS = [
 ];
 
 export default function AdminSettings() {
+  const confirm = useConfirm();
   const { theme, accent, toggleTheme, setAccent, brandColors, applyBrandColors } = useTheme();
   const [config, setConfig] = useState(null);
   const [tiers, setTiers] = useState([]);
@@ -175,7 +180,13 @@ export default function AdminSettings() {
   }
 
   async function deactivateUser(id) {
-    if (!confirm('Deactivate this admin user?')) return;
+    const ok = await confirm({
+      title: 'Deactivate this user?',
+      message: 'They will no longer be able to sign in. You can add them again later.',
+      confirmLabel: 'Deactivate',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.delete(`/admin/users/${id}`);
       loadAll();
@@ -185,42 +196,22 @@ export default function AdminSettings() {
   }
 
   if (error) return <div style={{ color: 'var(--danger)' }}>{error}</div>;
-  if (!config) return <div>Loading…</div>;
+  if (!config) return <ListSkeleton rows={6} />;
 
   return (
     <div>
-      <div className="font-serif" style={{ fontSize: 26, fontWeight: 600, marginBottom: 20 }}>Admin Settings</div>
+      <PageHeader title="Settings" subtitle="Appearance, business details, interest tiers, notices and who can sign in." />
 
       <div className="card" style={{ padding: 22, marginBottom: 24 }}>
-        <div className="font-serif" style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>Appearance</div>
+        <h2 className="section-title">Appearance</h2>
         <div style={{ marginBottom: 16 }}>
           <label>Mode</label>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => theme !== 'light' && toggleTheme()}
-              style={{
-                background: theme === 'light' ? 'var(--ink)' : 'var(--surface)',
-                color: theme === 'light' ? '#fff' : 'var(--text)',
-                border: '1px solid var(--border)',
-              }}
-            >
-              ☀️ Light
-            </button>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => theme !== 'dark' && toggleTheme()}
-              style={{
-                background: theme === 'dark' ? 'var(--ink)' : 'var(--surface)',
-                color: theme === 'dark' ? '#fff' : 'var(--text)',
-                border: '1px solid var(--border)',
-              }}
-            >
-              🌙 Dark
-            </button>
-          </div>
+          <Segmented
+            label="Mode"
+            value={theme}
+            onChange={(mode) => mode !== theme && toggleTheme()}
+            options={[{ value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }]}
+          />
         </div>
         <div>
           <label>Accent color</label>
@@ -252,12 +243,12 @@ export default function AdminSettings() {
       </div>
 
       <div className="card" style={{ padding: 22, marginBottom: 24 }}>
-        <div className="font-serif" style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>Branding</div>
+        <h2 className="section-title">Branding</h2>
         <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 16 }}>
           This deployment's own color palette — unlike the Accent picker above (a personal preference), this
           applies for every user of this app and is meant to be set once per business.
         </div>
-        {!draftColors && <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>Loading…</div>}
+        {!draftColors && <Skeleton height={80} />}
         {draftColors && !canEditConfig && (
           <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Only admin / super admin roles can edit branding.</div>
         )}
@@ -296,7 +287,7 @@ export default function AdminSettings() {
       {role && <BusinessProfileCard canEdit={canEditConfig} />}
 
       <div className="card" style={{ padding: 22, marginBottom: 24 }}>
-        <div className="font-serif" style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>Interest Tiers</div>
+        <h2 className="section-title">Interest tiers</h2>
         {tiers.map((tier, i) => (
           <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 10 }}>
             <div className="field" style={{ flex: 1, marginBottom: 0 }}>
@@ -344,7 +335,7 @@ export default function AdminSettings() {
       </div>
 
       <div className="card" style={{ padding: 22, marginBottom: 24 }}>
-        <div className="font-serif" style={{ fontSize: 18, fontWeight: 600, marginBottom: 6 }}>Overdue Notices</div>
+        <h2 className="section-title" style={{ marginBottom: 6 }}>Overdue notices</h2>
         <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 14 }}>
           Month thresholds (since loan date) at which a registered-post notice is due, plus the flat,
           non-compounding cost added to the amount owed each time one is sent.
@@ -389,7 +380,7 @@ export default function AdminSettings() {
       </div>
 
       <div className="card" style={{ padding: 22, marginBottom: 24 }}>
-        <div className="font-serif" style={{ fontSize: 18, fontWeight: 600, marginBottom: 6 }}>Coverage Thresholds</div>
+        <h2 className="section-title" style={{ marginBottom: 6 }}>Coverage thresholds</h2>
         <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 14 }}>
           Ratio = today's melt value ÷ amount owed. Red = at risk, Amber = watch, Green = healthy.
         </div>
@@ -417,7 +408,7 @@ export default function AdminSettings() {
 
       <div className="card" style={{ padding: 22 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <div className="font-serif" style={{ fontSize: 18, fontWeight: 600 }}>Admin Users</div>
+          <h2 className="section-title" style={{ margin: 0 }}>Admin users</h2>
           {isSuperAdmin && (
             <button className="btn btn-primary" onClick={() => setShowUserModal(true)}>+ New Admin User</button>
           )}

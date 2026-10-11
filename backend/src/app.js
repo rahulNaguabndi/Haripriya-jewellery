@@ -17,6 +17,8 @@ import priceRoutes from './routes/prices.js';
 import accountRoutes from './routes/accounts.js';
 import messageRoutes from './routes/messages.js';
 import businessProfileRoutes from './routes/businessProfile.js';
+import activityRoutes from './routes/activity.js';
+import searchRoutes from './routes/search.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { getBrandTheme } from './controllers/adminController.js';
 
@@ -27,7 +29,9 @@ const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
   .map((origin) => origin.trim());
 
 app.use(cors({ origin: allowedOrigins }));
-app.use(express.json());
+// 1 MB covers a compressed item photo sent as base64 (server caps the
+// decoded image at 400 KB); everything else is tiny JSON.
+app.use(express.json({ limit: '1mb' }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
@@ -51,6 +55,8 @@ app.use('/api/prices', priceRoutes);
 app.use('/api/accounts', accountRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/business-profile', businessProfileRoutes);
+app.use('/api/activity', activityRoutes);
+app.use('/api/search', searchRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

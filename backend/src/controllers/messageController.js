@@ -15,7 +15,8 @@ function validateRequest(body) {
   const { loanIds, template = 'auction_notice', noticeDays = DEFAULT_NOTICE_DAYS } = body;
   if (!Array.isArray(loanIds) || loanIds.length === 0) throw new ApiError(400, 'loanIds must be a non-empty array');
   if (loanIds.length > MAX_BATCH) throw new ApiError(400, `Send to at most ${MAX_BATCH} loans at a time`);
-  if (!TEMPLATES[template]) throw new ApiError(400, `template must be one of: ${Object.keys(TEMPLATES).join(', ')}`);
+  const bulkTemplates = Object.keys(TEMPLATES).filter((key) => !TEMPLATES[key].confirmation);
+  if (!bulkTemplates.includes(template)) throw new ApiError(400, `template must be one of: ${bulkTemplates.join(', ')}`);
   const days = Number(noticeDays);
   if (!Number.isInteger(days) || days < 1 || days > 365) throw new ApiError(400, 'noticeDays must be a whole number of days (1-365)');
   return { loanIds, template, noticeDays: days };
@@ -51,7 +52,12 @@ export async function getMessagingConfig(req, res, next) {
   try {
     res.json({
       channels: { whatsapp: isWhatsAppConfigured(), sms: isSmsConfigured() },
-      templates: Object.entries(TEMPLATES).map(([key, t]) => ({ key, label: t.label, whatsappBody: t.whatsappBody })),
+      templates: Object.entries(TEMPLATES)
+        .filter(([, t]) => !t.confirmation)
+        .map(([key, t]) => ({ key, label: t.label, whatsappBody: t.whatsappBody })),
+      confirmationTemplates: Object.entries(TEMPLATES)
+        .filter(([, t]) => t.confirmation)
+        .map(([key, t]) => ({ key, label: t.label, whatsappBody: t.whatsappBody })),
       defaultNoticeDays: DEFAULT_NOTICE_DAYS,
     });
   } catch (err) {
@@ -116,19 +122,7 @@ export async function sendMessages(req, res, next) {
           }
         }
         results.push({ loanId: loan.id, loanNumber: loan.loan_number, borrowerName: loan.borrowers?.name || null, channel, ...outcome });
-        const { error } = await supabase.from('message_log').insert({
-          loan_id: loan.id,
-          borrower_id: loan.borrower_id,
-          channel,
-          template: request.template,
-          to_phone: to,
-          body: rendered.text,
-          status: outcome.status,
-          provider_message_id: outcome.providerMessageId || null,
-          error: outcome.error || null,
-          sent_by: req.user.id,
-        });
-        if (error) console.warn('[messages] could not write message_log:', error.message);
+        await logAttempt({ loan, channel, template: request.template, to, text: rendered.text, outcome, userId: req.user.id });
       }
     }
 
@@ -137,6 +131,90 @@ export async function sendMessages(req, res, next) {
       summary: { sent: count('sent'), failed: count('failed'), skipped: count('skipped'), notConfigured: count('not_configured') },
       results,
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function logAttempt({ loan, channel, template, to, text, outcome, userId }) {
+  const { error } = await supabase.from('message_log').insert({
+    loan_id: loan.id,
+    borrower_id: loan.borrower_id,
+    channel,
+    template,
+    to_phone: to,
+    body: text,
+    status: outcome.status,
+    provider_message_id: outcome.providerMessageId || null,
+    error: outcome.error || null,
+    sent_by: userId,
+  });
+  if (error) console.warn('[messages] could not write message_log:', error.message);
+}
+
+// POST /api/messages/confirmation { kind: 'payment' | 'closure', loanId, paymentId?, channels }
+// "We received your payment" / "your loan is closed" message to the
+// borrower, sent from the payment and closure dialogs. Open to all staff
+// (unlike legal notices, which are admin-only), one loan at a time.
+export async function sendConfirmation(req, res, next) {
+  try {
+    requireFields(req.body, ['kind', 'loanId', 'channels']);
+    const { kind, loanId, paymentId, channels } = req.body;
+    if (!['payment', 'closure'].includes(kind)) throw new ApiError(400, "kind must be 'payment' or 'closure'");
+    if (kind === 'payment' && !paymentId) throw new ApiError(400, 'paymentId is required for a payment confirmation');
+    if (!Array.isArray(channels) || channels.length === 0 || channels.some((c) => !CHANNELS.includes(c))) {
+      throw new ApiError(400, `channels must be a non-empty array from: ${CHANNELS.join(', ')}`);
+    }
+
+    const { data: loan, error: loanError } = await supabase
+      .from('loans')
+      .select('id, loan_number, loan_amount, loan_date, status, closure_date, interest_collected, borrower_id, total_payment_received, borrowers(id, name, phone), loan_items(item_type, metal_type, purity, gross_weight, net_weight)')
+      .eq('id', loanId)
+      .maybeSingle();
+    if (loanError) throw new ApiError(400, loanError.message);
+    if (!loan) throw new ApiError(404, 'Loan not found');
+
+    let payment = null;
+    if (kind === 'payment') {
+      const { data, error } = await supabase
+        .from('payments')
+        .select('id, amount, payment_date, payment_type')
+        .eq('id', paymentId)
+        .eq('loan_id', loanId)
+        .maybeSingle();
+      if (error) throw new ApiError(400, error.message);
+      if (!data) throw new ApiError(404, 'Payment not found on this loan');
+      payment = data;
+    }
+    if (kind === 'closure' && loan.status !== 'closed') throw new ApiError(400, 'This loan is not closed');
+
+    const template = kind === 'payment' ? 'payment_received' : 'loan_closed';
+    const business = await getActiveBusinessProfile();
+    const balance = { principalRemaining: Math.max(0, Number(loan.loan_amount) - Number(loan.total_payment_received || 0)) };
+    const rendered = renderTemplate(template, { business, borrower: loan.borrowers, loan, payment, balance });
+    const to = toE164India(loan.borrowers?.phone);
+    const problem = !loan.borrowers?.phone
+      ? 'No phone number on file'
+      : !to
+      ? `Phone "${loan.borrowers.phone}" isn't a valid Indian mobile number`
+      : null;
+
+    const results = [];
+    for (const channel of channels) {
+      let outcome;
+      if (problem) outcome = { status: 'skipped', error: problem };
+      else {
+        try {
+          outcome = await deliver(channel, to, rendered);
+        } catch (err) {
+          outcome = { status: 'failed', error: err.message };
+        }
+      }
+      results.push({ channel, ...outcome });
+      await logAttempt({ loan, channel, template, to, text: rendered.text, outcome, userId: req.user.id });
+    }
+
+    res.json({ text: rendered.text, results });
   } catch (err) {
     next(err);
   }

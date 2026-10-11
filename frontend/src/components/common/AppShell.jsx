@@ -1,146 +1,199 @@
-import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
-import ThemeToggle from './ThemeToggle.jsx';
+import { useTheme } from '../../context/ThemeContext.jsx';
+import { useMyRole, isAdminRole } from '../../hooks/useMyRole.js';
+import { useShortcuts, SHORTCUTS } from '../../hooks/useShortcuts.js';
+import GlobalSearch from './GlobalSearch.jsx';
+import Modal from './Modal.jsx';
+import { Kbd } from './Kbd.jsx';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/borrowers', label: 'Borrowers' },
   { to: '/loans', label: 'Loans' },
   { to: '/payments', label: 'Payments' },
+  { to: '/day-book', label: 'Day Book' },
   { to: '/notices', label: 'Notices' },
   { to: '/coverage', label: 'Coverage' },
   { to: '/storage', label: 'Storage' },
   { to: '/accounts', label: 'Accounts' },
   { to: '/reports', label: 'Reports' },
-  { to: '/admin/settings', label: 'Admin Settings' },
 ];
 
-const navLinkStyle = ({ isActive }) => ({
-  padding: '8px 14px',
-  borderRadius: 8,
-  fontSize: 13.5,
-  fontWeight: isActive ? 600 : 500,
-  textDecoration: 'none',
-  color: isActive ? '#F3E9D2' : '#C9B89A',
-  background: isActive ? 'rgba(203,164,92,0.16)' : 'transparent',
-  boxShadow: isActive ? 'inset 0 -2px 0 var(--gold)' : 'inset 0 -2px 0 transparent',
-  transition: 'color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease',
-});
+// Email, theme, settings and sign-out live in one account menu so the bar
+// only carries page links (it used to wrap "Admin Settings"/"Sign out").
+function AccountMenu({ email, isAdmin, onLogout, onShortcuts }) {
+  const { theme, toggleTheme } = useTheme();
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => ref.current && !ref.current.contains(e.target) && setOpen(false);
+    const onKey = (e) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const initial = (email || '?').trim()[0]?.toUpperCase();
+  const goTo = (path) => {
+    setOpen(false);
+    navigate(path);
+  };
+
+  return (
+    <div className="account" ref={ref}>
+      <button type="button" className="account-trigger" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <span className="account-avatar" aria-hidden>{initial}</span>
+        <span className="sr-only">Account menu</span>
+      </button>
+      {open && (
+        <div className="account-menu" role="menu">
+          <div className="account-email" title={email}>{email}</div>
+          <button role="menuitem" type="button" onClick={() => goTo('/admin/settings')}>Settings</button>
+          {isAdmin && <button role="menuitem" type="button" onClick={() => goTo('/activity')}>Activity log</button>}
+          <button role="menuitem" type="button" onClick={() => { setOpen(false); onShortcuts(); }}>Keyboard shortcuts</button>
+          <button role="menuitem" type="button" onClick={toggleTheme}>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</button>
+          <div className="account-sep" />
+          <button role="menuitem" type="button" onClick={onLogout}>Sign out</button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AppShell({ children }) {
   const { user, logout } = useAuth();
+  const role = useMyRole();
   const navigate = useNavigate();
+  const location = useLocation();
   const [navOpen, setNavOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  useEffect(() => {
+    setNavOpen(false);
+    setSearchOpen(false);
+  }, [location.pathname]);
 
   async function handleLogout() {
-    setNavOpen(false);
     await logout();
     navigate('/login');
   }
 
-  return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <div
-        style={{
-          background: 'color-mix(in srgb, var(--ink) 88%, transparent)',
-          backdropFilter: 'blur(10px)',
-          color: '#C9B89A',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 28,
-          padding: '0 20px',
-          height: 62,
-          position: 'sticky',
-          top: 0,
-          zIndex: 50,
-          borderBottom: '1px solid rgba(203,164,92,0.18)',
-          boxShadow: '0 1px 0 rgba(0,0,0,0.25)',
-        }}
-        className="md:px-8"
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-          <div
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 7,
-              border: '1px solid var(--gold)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <div className="font-serif" style={{ fontSize: 17, color: 'var(--gold)' }}>H</div>
-          </div>
-          <div className="font-serif" style={{ fontSize: 19, fontWeight: 600, color: '#F3E9D2', letterSpacing: '0.01em' }}>
-            Haripriya
-          </div>
-        </div>
+  const handlers = useMemo(
+    () => ({
+      // On the dashboard the big inline search box takes focus instead.
+      search: () => {
+        const inline = document.getElementById('dashboard-search');
+        if (inline) inline.focus();
+        else setSearchOpen(true);
+      },
+      newLoan: () => navigate('/loans?new=1'),
+      newBorrower: () => navigate('/borrowers?new=1'),
+      payments: () => navigate('/payments'),
+      dayBook: () => navigate('/day-book'),
+      home: () => navigate('/dashboard'),
+      help: () => setHelpOpen(true),
+    }),
+    [navigate]
+  );
+  useShortcuts(handlers);
 
-        <nav className="hidden xl:flex" style={{ gap: 4, flex: 1 }}>
+  return (
+    <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
+      <a href="#main" className="skip-link">Skip to content</a>
+      <header className="shell-bar">
+        <NavLink to="/dashboard" className="shell-brand" aria-label="Haripriya home">
+          <span className="shell-mark" aria-hidden>H</span>
+          <span className="shell-name">Haripriya</span>
+        </NavLink>
+
+        <nav className="shell-nav hidden xl:flex" aria-label="Main">
           {navItems.map((item) => (
-            <NavLink key={item.to} to={item.to} style={navLinkStyle}>
+            <NavLink key={item.to} to={item.to} className="nav-link">
               {item.label}
             </NavLink>
           ))}
         </nav>
 
-        <div className="hidden xl:flex" style={{ flex: 1 }} />
-
-        <div className="hidden xl:flex" style={{ alignItems: 'center', gap: 14 }}>
-          <div style={{ fontSize: 12.5, color: '#C9B89A' }}>{user?.email}</div>
-          <ThemeToggle style={{ border: '1px solid #4a4030' }} />
-          <button
-            onClick={handleLogout}
-            className="btn"
-            style={{ background: 'transparent', color: '#C9B89A', border: '1px solid #4a4030', padding: '7px 12px' }}
-          >
-            Sign out
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button type="button" className="shell-search" onClick={handlers.search} aria-label="Search (press /)" title="Search  ( / or Ctrl+K )">
+            <span aria-hidden>⌕</span>
+            <span className="shell-search-label">Search</span>
+            <Kbd>/</Kbd>
           </button>
-        </div>
-
-        <div className="flex xl:hidden items-center gap-2 ml-auto">
-          <ThemeToggle style={{ border: '1px solid #4a4030' }} />
+          <AccountMenu email={user?.email} isAdmin={isAdminRole(role)} onLogout={handleLogout} onShortcuts={() => setHelpOpen(true)} />
           <button
             type="button"
+            className="shell-burger xl:hidden"
             onClick={() => setNavOpen((v) => !v)}
             aria-label={navOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={navOpen}
-            className="btn"
-            style={{ background: 'transparent', color: '#C9B89A', border: '1px solid #4a4030', width: 34, height: 34, padding: 0, fontSize: 16 }}
           >
             {navOpen ? '✕' : '☰'}
           </button>
         </div>
-      </div>
+      </header>
 
       {navOpen && (
-        <div
-          className="xl:hidden flex flex-col"
-          style={{ background: 'var(--ink)', borderTop: '1px solid #362E22', position: 'sticky', top: 62, zIndex: 49, padding: '10px 16px 16px', maxHeight: 'calc(100dvh - 62px)', overflowY: 'auto' }}
-        >
+        <nav className="shell-drawer flex flex-col xl:hidden" aria-label="Main">
           {navItems.map((item) => (
-            <NavLink key={item.to} to={item.to} onClick={() => setNavOpen(false)} style={navLinkStyle}>
+            <NavLink key={item.to} to={item.to} className="nav-link">
               {item.label}
             </NavLink>
           ))}
-          <div style={{ borderTop: '1px solid #362E22', margin: '10px 0' }} />
-          <div style={{ fontSize: 12.5, color: '#C9B89A', padding: '0 14px 10px' }}>{user?.email}</div>
-          <button
-            onClick={handleLogout}
-            className="btn"
-            style={{ background: 'transparent', color: '#C9B89A', border: '1px solid #4a4030', padding: '9px 12px', margin: '0 14px' }}
-          >
-            Sign out
-          </button>
+          {isAdminRole(role) && <NavLink to="/activity" className="nav-link">Activity log</NavLink>}
+          <NavLink to="/admin/settings" className="nav-link">Settings</NavLink>
+        </nav>
+      )}
+
+      <main id="main" className="flex-1 px-4 py-6 md:px-8 md:py-8" style={{ maxWidth: 1280, width: '100%', margin: '0 auto' }}>
+        {children}
+      </main>
+
+      {searchOpen && (
+        <div className="modal-overlay search-overlay" onClick={() => setSearchOpen(false)}>
+          <div className="modal-panel search-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Search">
+            <GlobalSearch autoFocus onDone={() => setSearchOpen(false)} />
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 10, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <span><Kbd>↑</Kbd> <Kbd>↓</Kbd> move</span>
+              <span><Kbd>Enter</Kbd> open</span>
+              <span><Kbd>Esc</Kbd> close</span>
+            </div>
+          </div>
         </div>
       )}
 
-      <div className="flex-1 px-4 py-6 md:px-8 md:py-7" style={{ maxWidth: 1280, width: '100%', margin: '0 auto' }}>
-        {children}
-      </div>
+      {helpOpen && (
+        <Modal title="Keyboard shortcuts" onClose={() => setHelpOpen(false)}>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 0 }}>
+            Press these anywhere except while typing in a box.
+          </p>
+          <div style={{ display: 'grid', gap: 10 }}>
+            {SHORTCUTS.map((s) => (
+              <div key={s.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, fontSize: 14 }}>
+                <span>{s.label}</span>
+                <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  {s.keys.map((k) => <Kbd key={k}>{k}</Kbd>)}
+                  {s.alt && (
+                    <>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>or</span>
+                      {s.alt.map((k) => <Kbd key={k}>{k}</Kbd>)}
+                    </>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

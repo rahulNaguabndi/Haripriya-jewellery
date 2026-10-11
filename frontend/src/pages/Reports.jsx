@@ -5,15 +5,19 @@ import StatusBadge from '../components/common/StatusBadge.jsx';
 import { TableSkeleton } from '../components/common/Skeleton.jsx';
 import ReportsOverview from '../components/Reports/ReportsOverview.jsx';
 import Demographics from '../components/Reports/Demographics.jsx';
+import RiskForecast from '../components/Reports/RiskForecast.jsx';
+import PageHeader from '../components/common/PageHeader.jsx';
+import Segmented from '../components/common/Segmented.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
 
 const tabs = [
   { key: 'overview', label: 'Overview' },
+  { key: 'risk', label: 'Risk & forecast' },
   { key: 'demographics', label: 'Demographics' },
-  { key: 'outstanding-interest', label: 'Outstanding Interest' },
-  { key: 'overdue', label: 'Due Date Passed (informational)' },
-  { key: 'closed', label: 'Closed Loans' },
-  { key: 'borrower-summary', label: 'Borrower Summary' },
+  { key: 'outstanding-interest', label: 'Outstanding interest' },
+  { key: 'overdue', label: 'Due date passed' },
+  { key: 'closed', label: 'Closed loans' },
+  { key: 'borrower-summary', label: 'Borrower summary' },
 ];
 
 const loanColumns = [
@@ -42,7 +46,7 @@ export default function Reports() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (tab === 'overview' || tab === 'demographics') return;
+    if (tab === 'overview' || tab === 'demographics' || tab === 'risk') return;
     setLoading(true);
     setError('');
     api
@@ -56,28 +60,17 @@ export default function Reports() {
 
   return (
     <div>
-      <div className="font-serif" style={{ fontSize: 26, fontWeight: 600, marginBottom: 20 }}>Reports</div>
+      <PageHeader title="Reports" subtitle="Trends across the book, where business comes from, and what's outstanding." />
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className="btn"
-            style={{
-              background: tab === t.key ? 'var(--ink)' : 'var(--surface)',
-              color: tab === t.key ? '#fff' : 'var(--text)',
-              border: '1px solid var(--border)',
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div style={{ overflowX: 'auto', marginBottom: 20, paddingBottom: 2 }}>
+        <Segmented label="Report" value={tab} onChange={setTab} options={tabs.map((t) => ({ value: t.key, label: t.label }))} style={{ flexWrap: 'nowrap' }} />
       </div>
 
       {error && <div style={{ color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
       {tab === 'overview' ? (
         <ReportsOverview />
+      ) : tab === 'risk' ? (
+        <RiskForecast />
       ) : tab === 'demographics' ? (
         <Demographics />
       ) : loading ? (

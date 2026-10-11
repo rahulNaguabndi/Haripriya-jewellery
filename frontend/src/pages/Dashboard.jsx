@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import PageHeader from '../components/common/PageHeader.jsx';
 import { api } from '../services/api.js';
 import StatCard from '../components/common/StatCard.jsx';
 import InsightCard from '../components/common/InsightCard.jsx';
 import { ListSkeleton } from '../components/common/Skeleton.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
+import GlobalSearch from '../components/common/GlobalSearch.jsx';
+import { Kbd } from '../components/common/Kbd.jsx';
 
 export default function Dashboard() {
   const [loanCounts, setLoanCounts] = useState({ loading: true, data: null, error: null });
@@ -16,8 +19,14 @@ export default function Dashboard() {
   const [rates, setRates] = useState({ loading: true, data: null, error: null });
   const [notices, setNotices] = useState({ loading: true, data: null, error: null });
   const [coverage, setCoverage] = useState({ loading: true, data: null, error: null });
+  const [dayBook, setDayBook] = useState({ loading: true, data: null, error: null });
 
   useEffect(() => {
+    api
+      .get('/reports/day-book')
+      .then((res) => setDayBook({ loading: false, data: res.data.totals, error: null }))
+      .catch((err) => setDayBook({ loading: false, data: null, error: err.message }));
+
     // Each tile is fetched from its own endpoint independently, in parallel —
     // a slow/failing query only affects its own card, not the whole dashboard.
     api
@@ -91,20 +100,25 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
-        <div className="font-serif" style={{ fontSize: 26, fontWeight: 600 }}>Dashboard</div>
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{today}</div>
+      <PageHeader title="Dashboard" subtitle={today} />
+
+      <div className="card" style={{ padding: 16, marginBottom: 24 }}>
+        <GlobalSearch id="dashboard-search" placeholder="Find a customer, loan / packet no., HUID or item…" />
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+          Returning customer? Search their name and press <strong>Re-pledge</strong> on a closed loan to reuse its items.<span className="hidden md:inline"> Press <Kbd>/</Kbd> from any page to search.</span>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-7">
-        <StatCard label="Total Loans" loading={loanCounts.loading} value={tileValue(loanCounts, (d) => d.totalLoans)} />
-        <StatCard label="Active Loans" loading={loanCounts.loading} value={tileValue(loanCounts, (d) => d.activeLoans)} />
-        <StatCard label="Total Borrowers" loading={borrowerCount.loading} value={tileValue(borrowerCount, (d) => d.totalBorrowers)} />
-        <StatCard label="Outstanding Principal" loading={outstanding.loading} value={tileValue(outstanding, (d) => formatCurrency(d.totalPrincipalOutstanding))} />
-        <StatCard label="Outstanding Interest" loading={outstanding.loading} value={tileValue(outstanding, (d) => formatCurrency(d.totalInterestOutstanding))} />
+      {/* Money first and wider; counts are supporting detail. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.5fr_1.5fr_1fr_1fr_1fr] gap-4 mb-8">
+        <StatCard label="Principal out on loan" loading={outstanding.loading} value={tileValue(outstanding, (d) => formatCurrency(d.totalPrincipalOutstanding))} sublabel="open loans" />
+        <StatCard label="Interest accrued" loading={outstanding.loading} value={tileValue(outstanding, (d) => formatCurrency(d.totalInterestOutstanding))} sublabel="not yet collected" />
+        <StatCard label="Active loans" loading={loanCounts.loading} value={tileValue(loanCounts, (d) => d.activeLoans)} sublabel={loanCounts.data ? `of ${loanCounts.data.totalLoans} total` : undefined} />
+        <StatCard label="Borrowers" loading={borrowerCount.loading} value={tileValue(borrowerCount, (d) => d.totalBorrowers)} />
+        <StatCard label="All loans" loading={loanCounts.loading} value={tileValue(loanCounts, (d) => d.totalLoans)} />
       </div>
 
-      <div className="font-serif" style={{ fontSize: 17, fontWeight: 600, marginBottom: 12 }}>Needs attention</div>
+      <h2 className="section-title">Needs attention</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-7">
         <InsightCard
           to="/coverage"
@@ -122,6 +136,16 @@ export default function Dashboard() {
               : 'no rate on record'
           }
           cta={rateSetToday ? undefined : "Set today's rate"}
+        />
+
+        <InsightCard
+          to="/day-book"
+          tone={!dayBook.data ? 'neutral' : dayBook.data.net < 0 ? 'amber' : 'green'}
+          label="Today's Cash"
+          loading={dayBook.loading}
+          value={dayBook.data ? `${dayBook.data.net < 0 ? '−' : '+'}${formatCurrency(Math.abs(dayBook.data.net))}` : '—'}
+          sublabel={dayBook.data ? `In ${formatCurrency(dayBook.data.moneyIn)} · Out ${formatCurrency(dayBook.data.moneyOut)}` : ''}
+          cta="Open day book"
         />
 
         <InsightCard
@@ -174,7 +198,7 @@ export default function Dashboard() {
 
       <div className="card" style={{ padding: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <div className="font-serif" style={{ fontSize: 17, fontWeight: 600 }}>Recent Payments</div>
+          <h2 className="section-title" style={{ margin: 0 }}>Recent payments</h2>
           <Link to="/payments" style={{ fontSize: 13, color: 'var(--gold-deep)', textDecoration: 'none', fontWeight: 600 }}>
             View all
           </Link>
@@ -208,7 +232,7 @@ export default function Dashboard() {
 
       <div className="card" style={{ padding: 20, marginTop: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <div className="font-serif" style={{ fontSize: 17, fontWeight: 600 }}>Due Date Passed</div>
+          <h2 className="section-title" style={{ margin: 0 }}>Due date passed</h2>
           <Link to="/reports" style={{ fontSize: 13, color: 'var(--gold-deep)', textDecoration: 'none', fontWeight: 600 }}>
             View all
           </Link>

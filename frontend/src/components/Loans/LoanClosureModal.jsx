@@ -1,29 +1,48 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Modal from '../common/Modal.jsx';
+import InterestWaiverFields, { needsWaiverReason, waiverReasonText } from './InterestWaiverFields.jsx';
+import NotifyBorrower from '../Messaging/NotifyBorrower.jsx';
+import { useInterestAsOf } from '../../hooks/useInterestAsOf.js';
 
-export default function LoanClosureModal({ suggestedInterest, cardGiven, cardReturned, onConfirm, onCancel }) {
+export default function LoanClosureModal({ loan, onConfirm, onCancel }) {
   const [closureDate, setClosureDate] = useState(new Date().toISOString().slice(0, 10));
-  const [interestCollected, setInterestCollected] = useState(suggestedInterest ?? '');
-  const [cardReturnedNow, setCardReturnedNow] = useState(!!cardReturned);
+  const calculated = useInterestAsOf(loan.id, closureDate, loan.interest?.totalInterestAccrued);
+  const [interestCollected, setInterestCollected] = useState(calculated ?? '');
+  const [touched, setTouched] = useState(false);
+  const [waiver, setWaiver] = useState({ preset: '', note: '' });
+  const [cardReturnedNow, setCardReturnedNow] = useState(!!loan.card_returned);
+  const [notify, setNotify] = useState([]);
   const [error, setError] = useState('');
-  const cardNeedsReturn = cardGiven && !cardReturned;
+  const [saving, setSaving] = useState(false);
+  const cardNeedsReturn = loan.card_given && !loan.card_returned;
 
-  function handleSubmit(e) {
+  // Follow the calculated figure as the date changes, until staff type
+  // their own number.
+  useEffect(() => {
+    if (!touched && calculated != null) setInterestCollected(calculated);
+  }, [calculated, touched]);
+
+  async function handleSubmit(e) {
     e.preventDefault();
-    if (!closureDate) {
-      setError('Closure date is required.');
-      return;
-    }
-    if (interestCollected === '' || Number(interestCollected) < 0) {
-      setError('Interest collected is required and must be 0 or more.');
-      return;
-    }
-    if (cardNeedsReturn && !cardReturnedNow) {
-      setError('Confirm the card has been returned before closing this loan.');
-      return;
-    }
+    if (!closureDate) return setError('Closure date is required.');
+    if (interestCollected === '' || Number(interestCollected) < 0) return setError('Interest collected is required and must be 0 or more.');
+    if (needsWaiverReason(calculated, interestCollected, waiver)) return setError('Give a reason for collecting less than the calculated interest.');
+    if (cardNeedsReturn && !cardReturnedNow) return setError('Confirm the card has been returned before closing this loan.');
     setError('');
-    onConfirm(closureDate, Number(interestCollected), cardReturnedNow);
+    setSaving(true);
+    try {
+      await onConfirm({
+        closureDate,
+        interestCollected: Number(interestCollected),
+        cardReturned: cardReturnedNow,
+        waiverReason: waiverReasonText(waiver) || undefined,
+        notifyChannels: notify,
+      });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -41,9 +60,13 @@ export default function LoanClosureModal({ suggestedInterest, cardGiven, cardRet
             min="0"
             required
             value={interestCollected}
-            onChange={(e) => setInterestCollected(e.target.value)}
+            onChange={(e) => {
+              setTouched(true);
+              setInterestCollected(e.target.value);
+            }}
           />
         </div>
+        <InterestWaiverFields calculated={calculated} collected={interestCollected} value={waiver} onChange={setWaiver} />
 
         {cardNeedsReturn && (
           <div className="field">
@@ -59,11 +82,13 @@ export default function LoanClosureModal({ suggestedInterest, cardGiven, cardRet
           </div>
         )}
 
+        <NotifyBorrower phone={loan.borrowers?.phone} value={notify} onChange={setNotify} label="Send closure confirmation" />
+
         {error && <div style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 10 }}>{error}</div>}
 
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 6 }}>
           <button type="button" className="btn btn-secondary" onClick={onCancel}>Cancel</button>
-          <button type="submit" className="btn btn-primary">Confirm Closure</button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Closing…' : 'Confirm Closure'}</button>
         </div>
       </form>
     </Modal>

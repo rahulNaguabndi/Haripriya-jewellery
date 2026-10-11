@@ -47,6 +47,47 @@ export const TEMPLATES = {
       ];
     },
   },
+
+  // Receipt-style confirmations, sent right after a payment/closure is
+  // recorded. `payment` and `balance` come from the confirmation endpoint.
+  payment_received: {
+    label: 'Payment received - confirmation',
+    confirmation: true,
+    whatsappTemplateEnv: 'WHATSAPP_TEMPLATE_PAYMENT_RECEIVED',
+    whatsappTemplateDefault: 'loan_payment_received',
+    whatsappBody:
+      'Dear {{1}}, we have received Rs. {{2}} on {{3}} towards your Loan No. {{4}} with {{5}}. Principal still outstanding: Rs. {{6}}. Thank you. For any query please contact {{7}}.',
+    params({ business, borrower, loan, payment, balance }) {
+      return [
+        borrower?.name || 'Customer',
+        formatINR(payment?.amount),
+        formatDateIN(payment?.payment_date),
+        loan.loan_number,
+        business.trade_name || business.legal_name,
+        formatINR(balance?.principalRemaining),
+        business.phone || business.trade_name || business.legal_name,
+      ];
+    },
+  },
+
+  loan_closed: {
+    label: 'Loan closed - confirmation',
+    confirmation: true,
+    whatsappTemplateEnv: 'WHATSAPP_TEMPLATE_LOAN_CLOSED',
+    whatsappTemplateDefault: 'loan_closed_confirmation',
+    whatsappBody:
+      'Dear {{1}}, your Loan No. {{2}} with {{3}} has been fully settled and closed on {{4}}. Interest paid: Rs. {{5}}. Your pledged {{6}} have been released to you. Thank you for your trust.',
+    params({ business, borrower, loan }) {
+      return [
+        borrower?.name || 'Customer',
+        loan.loan_number,
+        business.trade_name || business.legal_name,
+        formatDateIN(loan.closure_date),
+        formatINR(loan.interest_collected),
+        describeItems(loan.loan_items),
+      ];
+    },
+  },
 };
 
 export const DEFAULT_NOTICE_DAYS = 15;
