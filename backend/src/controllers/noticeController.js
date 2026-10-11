@@ -3,6 +3,7 @@ import { ApiError } from '../middleware/errorHandler.js';
 import { requireFields } from '../utils/validators.js';
 import { fullCalendarMonthsElapsed } from '../utils/interestCalculator.js';
 import { getActiveNoticeConfig } from '../utils/noticeConfig.js';
+import { logActivity, inr } from '../utils/activityLog.js';
 
 export async function getNoticeConfig(req, res, next) {
   try {
@@ -59,6 +60,13 @@ export async function updateNoticeConfig(req, res, next) {
       if (error) throw new ApiError(400, error.message);
       result = data;
     }
+
+    await logActivity(req, {
+      action: 'config.notices',
+      entityType: 'notice_config',
+      entityId: result.id,
+      summary: `Changed notice schedule to ${result.threshold_months.join('/')} months, ${inr(costAmount)} per notice`,
+    });
 
     res.json(result);
   } catch (err) {
@@ -137,7 +145,7 @@ export async function createNotice(req, res, next) {
 
     const { data: loan, error: loanError } = await supabase
       .from('loans')
-      .select('id')
+      .select('id, loan_number, borrower_id')
       .eq('id', loanId)
       .maybeSingle();
     if (loanError) throw new ApiError(400, loanError.message);
@@ -163,6 +171,15 @@ export async function createNotice(req, res, next) {
       }
       throw new ApiError(400, error.message);
     }
+
+    await logActivity(req, {
+      action: 'notice.sent',
+      entityType: 'loan_notice',
+      entityId: data.id,
+      loanId,
+      borrowerId: loan.borrower_id,
+      summary: `Marked ${thresholdMonth}-month notice sent for ${loan.loan_number}${Number(data.cost_charged) ? ` (${inr(data.cost_charged)} charge)` : ''}`,
+    });
 
     res.status(201).json(data);
   } catch (err) {

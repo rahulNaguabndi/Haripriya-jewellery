@@ -22,27 +22,28 @@ in priority order.
 
 ## Open questions (not yet resolved — do not assume answers)
 
-- **Partial-payment worked example**: business owner still owes a concrete
-  numeric example (real dates + amounts) for how a mid-loan partial payment
-  nets out against interest on the original principal. Needed to verify
-  whether the app's segment-based recompute produces the same total payable
-  as the real-world method (see Interest section below).
 - **KDM / known-customer loan % bump**: confirmed to raise the loan
   percentage offered, but not confirmed to be a fixed/quantifiable bump
-  (e.g. "+10%") vs. pure case-by-case judgment.
-- **Repeat-pledge item lookup**: confirmed practice is to match a returning
-  item against a prior record (weight + description) instead of re-doing an
-  acid test — but whether this lookup is already done via the desktop app or
-  purely from memory/paper is unconfirmed. Given no other lookup tooling
-  exists today, likely manual — needs confirming before designing a fix.
+  (e.g. "+10%") vs. pure case-by-case judgment. (The borrower reliability
+  score added 2026-10-10 is a guide for this judgment, not a fixed bump.)
 - **Notice suppression rule**: partial payments suppress the scheduled
   overdue notice *unless* the loan is still under-covered on margin — this
   exception is explicitly "under discussion," not a settled rule yet.
 - **Auctioning authority name**: recorded generically as "government-approved
   pawnbroker auction" — exact scheme/authority name not yet given.
-- **Post-year-1 compounding grace window** (~7 days, negotiable): unclear
-  whether this should become a soft override control in the app, or stay a
-  manual/off-system judgment call never encoded as a rule.
+
+**Resolved:**
+- *Partial-payment worked example* — given by the business owner and the
+  calculator was written to it (gross interest on the full principal, less
+  interest on each paid-off amount from its payment date).
+- *Post-year-1 grace window* — staff always quote the system figure; if the
+  customer asks for the few post-anniversary days to be let off, staff enter
+  the lower amount at closure/rollover with a required reason (stored on the
+  loan as `interest_calculated` / `interest_waived` / `interest_waiver_reason`
+  and in the activity log). Not an automatic rule.
+- *Repeat-pledge item lookup* — done from the app: search the customer, open
+  the closed loan, "Re-pledge items" copies borrower + items (+ photos) into
+  a new loan; only amount and dates are entered.
 
 ---
 
@@ -106,8 +107,8 @@ review process.
 - **Partial payments:** described method is to compute interest on the full
   original principal for the entire loan-date-to-today span, then net off
   the interest that accrued on the paid-off portion from its payment date
-  forward, arriving at total payable. (Concrete worked example still
-  pending — see Open Questions.)
+  forward, arriving at total payable. (Worked example provided; the
+  calculator implements this method.)
 - **Overdue notices:** sent at **13, 19, 26, and 36 months** (configurable
   schedule, not evenly spaced) via registered post. Notice cost is a **flat,
   non-compounding charge** added to the amount owed, but must be
@@ -362,26 +363,33 @@ loans/day as an ongoing load) rather than a feature gap.
 
 ---
 
-## Summary: gap severity at a glance
+## Summary: gap status at a glance
 
-| Area | Real process exists? | App has it? | Severity |
+The sections above are the original interview snapshot (they describe the
+app *as it was then*). This table is the current status, last updated
+2026-10-10.
+
+| Area | Real process exists? | App has it? | Status |
 |---|---|---|---|
 | Interest tiers (24%/36% @ ₹1000) | Yes | Yes (matches) | ✅ Aligned |
-| Interest elapsed-time method | Calendar Y/M/D | Continuous day-fraction | 🔴 Numeric mismatch |
-| Interest compounding | Annual only, w/ grace | Continuous | 🔴 Numeric mismatch |
-| Minimum interest period | Yes (min 1 month) | No | 🔴 Missing |
-| Partial payment netting | Described method | Segmented, unverified parity | 🟡 Needs verification |
-| Overdue notices (13/19/26/36mo) | Yes | No | 🔴 Missing (new feature) |
-| Coverage/margin risk flagging | Wanted | No | 🔴 Missing (new feature) |
-| Daily metal rate capture/storage | Practiced, not stored | No | 🔴 Missing |
-| Soft due date | Wanted (non-binding) | Field exists, unused | 🟡 Close, needs wiring |
-| Rollover (close+relink) | Yes | No | 🔴 Missing |
-| Top-up / multiple tranches | Wanted (new) | No | 🔴 Missing (structural) |
-| Multiple items per loan | Yes | No (single item only) | 🔴 Missing (structural) |
+| Interest elapsed-time method | Calendar Y/M/D | Calendar Y/M/D | ✅ Done |
+| Interest compounding | Annual only | Annual only | ✅ Done |
+| Post-year-1 grace (~7 days) | Negotiated at counter | Reduction with required reason at close/rollover | ✅ Done |
+| Minimum interest period | Yes (min 1 month) | Yes | ✅ Done |
+| Partial payment netting | Described method | Implemented to the owner's worked example | ✅ Done |
+| Overdue notices (13/19/26/36mo) | Yes | Yes (Notices Due page) | ✅ Done |
+| Coverage/margin risk flagging | Wanted | Yes (+ price-drop simulator) | ✅ Done |
+| Daily metal rate capture/storage | Practiced, not stored | Yes | ✅ Done |
+| Soft due date | Wanted (non-binding) | Yes (informational) | ✅ Done |
+| Rollover (close+relink) | Yes | Yes | ✅ Done |
+| Re-pledge of returning items | Yes | Yes (search → Re-pledge copies items) | ✅ Done |
+| Top-up / multiple tranches | Wanted (new) | No - a rollover with a larger new amount is the current workaround | 🔴 Not built |
+| Multiple items per loan | Yes | Yes | ✅ Done |
 | Multiple loans per borrower | Yes | Yes | ✅ Aligned |
 | Card issue/return tracking | Yes | Yes (matches closely) | ✅ Aligned |
-| Packet/box/locker tracking | Manual/tribal | No | 🔴 Missing (new feature, priority #2) |
-| Item/ID photos | Wanted (new) | No | 🟡 New for both sides |
+| Packet/box/locker tracking | Manual/tribal | Yes | ✅ Done |
+| Item photos | Wanted (new) | Yes (compressed to ~100 KB, private bucket) | ✅ Done |
+| ID document copies (Aadhaar) | Wanted (optional) | Deliberately not stored - would need a full PII-security setup | ⏸️ Decided against for now |
 | Borrower identity fields | Yes | Yes (matches) | ✅ Aligned |
-| Desktop→Supabase migration | Needed | N/A | ⏸️ Deferred on purpose |
-| Accounting/tax/archival automation | Needed | N/A | ⏸️ Deferred on purpose |
+| Desktop→Supabase migration | Needed | Done by the owner | ✅ Done |
+| Accounting/tax/archival automation | Needed | Ledger export only | ⏸️ Deferred on purpose |

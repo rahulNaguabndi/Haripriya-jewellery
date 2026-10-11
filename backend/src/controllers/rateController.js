@@ -2,6 +2,7 @@ import { supabase } from '../config/supabaseClient.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { requireFields } from '../utils/validators.js';
 import { getTodayRate, getLatestRate } from '../utils/dailyRates.js';
+import { logActivity, inr } from '../utils/activityLog.js';
 
 const METAL_TYPES = ['Gold', 'Silver'];
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -66,6 +67,15 @@ export async function setRate(req, res, next) {
       if (error) throw new ApiError(400, error.message);
       result = data;
     }
+
+    await logActivity(req, {
+      action: existing ? 'rate.override' : 'rate.set',
+      entityType: 'daily_rate',
+      entityId: result.id,
+      summary: existing
+        ? `Overrode today's ${metalType} rate from ${inr(existing.rate_per_gram)}/g to ${inr(ratePerGram)}/g`
+        : `Set today's ${metalType} rate to ${inr(ratePerGram)}/g`,
+    });
 
     res.json(result);
   } catch (err) {

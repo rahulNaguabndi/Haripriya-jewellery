@@ -225,6 +225,34 @@ Admin Settings → Appearance card.
 | PRN-1 | Save & print | New loan → **Save & print pledge form** | Lands on `/loans/:id/print`, print dialog opens; 2 copies (office/customer), each fits one A4 page; Aadhaar masked to last 4 |
 | MOB-1 | Phone layout | 375px wide, visit every page | No horizontal page scroll; tables reflow into label/value cards; filters collapse behind "Filters"; nav collapses to ☰ below 1280px |
 
+## 10f. Re-pledge, interest reduction, photos, confirmations, day book, activity log, analytics, shortcuts
+
+> **Requires** `db/migrations/2026-10-10_repledge_photos_activity_daybook.sql`
+> to have been run in the Supabase SQL editor (loans re-pledge + waiver
+> columns, loan_photos, activity_log, `loan-photos` Storage bucket).
+
+| ID | Scenario | Steps | Expected result |
+|----|----------|-------|------------------|
+| SRCH-1 | Global search | Dashboard search box (or press `/` / Ctrl+K anywhere) → type a borrower name, then a loan no., a packet no., a 6-char HUID, an item description | Borrowers and loans (open + closed) listed; ↑/↓/Enter navigates; Esc clears/closes |
+| REP-1 | Re-pledge from search | Search a borrower with a closed loan → **Re-pledge** | Loan page opens with "Re-pledge items" form prefilled (borrower locked, items copied, amount blank, today's date); save → new loan shows "Re-pledge of LOAN-…", old loan shows "Re-pledged as …"; photos copied |
+| REP-2 | Re-pledge guards | Try re-pledging an open loan via API; open a rolled-over closed loan | API 400 "use Roll over"; no Re-pledge button on rolled-over loans |
+| REP-3 | HUID on re-pledge | Re-pledge an item with a HUID | Grey "pledged here before (closed)" note, not the red double-pledge warning |
+| WAV-1 | Close at calculated interest | Close a loan, leave interest as calculated | No reason asked; loan shows interest collected only |
+| WAV-2 | Reduced interest needs reason | Close (or roll over) with interest below the calculated figure | Amber "Reducing interest by ₹X - reason required"; submit blocked until a reason is picked; server also rejects a missing reason (400); loan page shows "₹X reduced from ₹Y" + reason; activity log has a "Reduced interest" entry |
+| WAV-3 | Calculated follows date | In the close dialog change the closure date | "System-calculated interest" and the prefilled amount update for that date |
+| PHO-1 | Add photo | Loan → Item photos → Add photo (phone camera or file, several at once) | Each uploads at ≤ ~120 KB (size shown); thumbnails appear; click opens large view |
+| PHO-2 | Remove photo | Open a photo → Remove → confirm | Gone from this loan; if a re-pledged/rolled loan shares it, still visible there |
+| CNF-1 | Payment confirmation | Record payment with WhatsApp/SMS ticked | Payment saves regardless of messaging; `message_log` row with template `payment_received` |
+| CNF-2 | Closure confirmation | Close loan with confirmation ticked | `message_log` row with template `loan_closed`; rollover sends none |
+| DAY-1 | Day book | Day Book (or press `D`) on a day with loans, payments and closures | Money in = part payments + closure principal + interest; money out = loans given; net shown; part payments split by mode (Cash/UPI/…); Prev/Next/date picker and Print work |
+| ACT-1 | Activity log | As admin: account menu → Activity log; filter by type, staff, date, search | Entries for loan create/edit/close/rollover/re-pledge, payments add/edit/delete, borrower changes, rates, settings, notices, photos |
+| ACT-2 | Per-record history | Loan and borrower pages → History card | Only that record's events; visible to staff too |
+| ACT-3 | Staff blocked | As `staff`, open `/activity` | "Admins only" |
+| RSK-1 | Risk & forecast | Reports → Risk & forecast | Ageing bars (13+ months coloured as notice territory), interest build-up 30/60/90 days, 6-month collections, borrower reliability donut + lists |
+| RSK-2 | Price-drop simulator | Coverage → drag "Price drop" | Loans at risk / owed / not-covered figures and the curve marker move; 0% matches today's red count |
+| RSK-3 | Borrower score | Borrower page → Reliability | Score ring + factor list (e.g. "Redeemed within 12 months ×2 +16"); new customers show "New customer" |
+| KEY-1 | Shortcuts | Press `?`; then `N`, `B`, `P`, `D`, `H` (not while typing) | Help dialog lists shortcuts; N/B open the new loan/borrower dialog; P/D/H navigate; keys typed inside inputs are not hijacked |
+
 ## 11. Regression run report format
 
 When asked to "run regression," produce a summary table: ID, Pass/Fail, one-line

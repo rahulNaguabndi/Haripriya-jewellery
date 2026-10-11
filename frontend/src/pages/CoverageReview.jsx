@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PageHeader from '../components/common/PageHeader.jsx';
+import { useConfirm } from '../components/common/ConfirmDialog.jsx';
 import { api } from '../services/api.js';
 import DataTable from '../components/common/DataTable.jsx';
 import { TableSkeleton } from '../components/common/Skeleton.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
+import PriceDropSimulator from '../components/Coverage/PriceDropSimulator.jsx';
 
 const METAL_TYPES = ['Gold', 'Silver'];
 const STATUS_LABELS = { red: 'At risk', amber: 'Watch', green: 'Healthy', unknown: 'Unknown' };
 
 export default function CoverageReview() {
+  const confirm = useConfirm();
   const navigate = useNavigate();
   const [rates, setRates] = useState({ today: {}, latest: {} });
   const [rateInputs, setRateInputs] = useState({ Gold: '', Silver: '' });
@@ -51,10 +55,12 @@ export default function CoverageReview() {
 
     const alreadySetToday = !!rates.today?.[metalType];
     if (alreadySetToday) {
-      const ok = confirm(
-        `${metalType}'s rate for today is already locked at ${formatCurrency(rates.today[metalType].rate_per_gram)}/g. ` +
-          `Override it with ${formatCurrency(value)}/g?`
-      );
+      const ok = await confirm({
+        title: `Override today's ${metalType.toLowerCase()} rate?`,
+        message: `It's already locked at ${formatCurrency(rates.today[metalType].rate_per_gram)}/g. Replace it with ${formatCurrency(value)}/g?`,
+        confirmLabel: 'Override rate',
+        danger: true,
+      });
       if (!ok) return;
     }
 
@@ -105,7 +111,7 @@ export default function CoverageReview() {
   if (loading) {
     return (
       <div>
-        <div className="font-serif" style={{ fontSize: 26, fontWeight: 600, marginBottom: 20 }}>Coverage Review</div>
+        <PageHeader title="Coverage review" subtitle="Is each open loan still covered by the metal pledged against it?" />
         <TableSkeleton columns={9} rows={10} />
       </div>
     );
@@ -114,14 +120,13 @@ export default function CoverageReview() {
 
   return (
     <div>
-      <div className="font-serif" style={{ fontSize: 26, fontWeight: 600, marginBottom: 6 }}>Coverage Review</div>
-      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
-        Ratio = today's melt value ÷ amount currently owed. Red ≤ {thresholds.redThreshold}, Amber &lt;{' '}
-        {thresholds.amberThreshold}, Green ≥ {thresholds.amberThreshold}.
-      </div>
+      <PageHeader
+        title="Coverage review"
+        subtitle={<>Ratio = today's melt value ÷ amount currently owed. Red ≤ {thresholds.redThreshold}, amber &lt; {thresholds.amberThreshold}, green ≥ {thresholds.amberThreshold}.</>}
+      />
 
       <div className="card" style={{ padding: 20, marginBottom: 24 }}>
-        <div className="font-serif" style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Today's Rate</div>
+        <h2 className="section-title">Today's rate</h2>
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
           {METAL_TYPES.map((metalType) => {
             const todayRow = rates.today?.[metalType];
@@ -162,6 +167,8 @@ export default function CoverageReview() {
           })}
         </div>
       </div>
+
+      <PriceDropSimulator rows={rows} redThreshold={thresholds.redThreshold} amberThreshold={thresholds.amberThreshold} />
 
       <DataTable
         columns={columns}

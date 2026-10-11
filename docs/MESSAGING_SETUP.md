@@ -47,6 +47,33 @@ quoted in every notice. Fill these in first.
 If you later want a Telugu version, register it as a second language of the
 same template and set `WHATSAPP_TEMPLATE_LANG=te`.
 
+### Payment / closure confirmations
+
+The payment and close-loan dialogs can send the borrower a confirmation
+(any staff member, one loan at a time - `POST /api/messages/confirmation`).
+Register two more **Utility** templates, bodies copied exactly from
+`templates.js`:
+
+- `loan_payment_received` (override name with `WHATSAPP_TEMPLATE_PAYMENT_RECEIVED`)
+
+  ```
+  Dear {{1}}, we have received Rs. {{2}} on {{3}} towards your Loan No. {{4}} with {{5}}. Principal still outstanding: Rs. {{6}}. Thank you. For any query please contact {{7}}.
+  ```
+  Variables: 1 borrower name · 2 amount · 3 payment date · 4 loan no. ·
+  5 trade name · 6 principal outstanding · 7 contact phone.
+
+- `loan_closed_confirmation` (override with `WHATSAPP_TEMPLATE_LOAN_CLOSED`)
+
+  ```
+  Dear {{1}}, your Loan No. {{2}} with {{3}} has been fully settled and closed on {{4}}. Interest paid: Rs. {{5}}. Your pledged {{6}} have been released to you. Thank you for your trust.
+  ```
+  Variables: 1 borrower name · 2 loan no. · 3 trade name · 4 closure date ·
+  5 interest paid · 6 items.
+
+Until a channel is configured the checkbox isn't pre-ticked; if staff tick
+it anyway the attempt is logged as `not_configured`. Rollovers don't send a
+"closed" message, since the ornaments stay pledged.
+
 ## 3. SMS (Twilio)
 
 1. Create a Twilio account and note its **Account SID** and **Auth Token**.

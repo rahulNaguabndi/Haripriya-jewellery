@@ -1,16 +1,21 @@
 import { useState } from 'react';
 import Modal from '../common/Modal.jsx';
+import NotifyBorrower, { sendConfirmation } from '../Messaging/NotifyBorrower.jsx';
 import { api } from '../../services/api.js';
 
-const paymentTypes = ['cash', 'cheque', 'transfer'];
+const paymentTypes = ['cash', 'upi', 'cheque', 'transfer'];
+const TYPE_LABELS = { cash: 'Cash', upi: 'UPI', cheque: 'Cheque', transfer: 'Bank transfer' };
 
-export default function PaymentModal({ loanId, onClose, onSaved }) {
+// borrowerPhone: when given, offers a WhatsApp/SMS "payment received"
+// confirmation that goes out after the payment is saved.
+export default function PaymentModal({ loanId, borrowerPhone, onClose, onSaved }) {
   const [form, setForm] = useState({
     amount: '',
     paymentDate: new Date().toISOString().slice(0, 10),
     paymentType: 'cash',
     notes: '',
   });
+  const [notify, setNotify] = useState([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -23,7 +28,8 @@ export default function PaymentModal({ loanId, onClose, onSaved }) {
     setSaving(true);
     setError('');
     try {
-      await api.post('/payments', { ...form, loanId, amount: Number(form.amount) });
+      const res = await api.post('/payments', { ...form, loanId, amount: Number(form.amount) });
+      sendConfirmation({ kind: 'payment', loanId, paymentId: res.data.id, channels: notify });
       onSaved();
     } catch (err) {
       setError(err.message);
@@ -37,7 +43,7 @@ export default function PaymentModal({ loanId, onClose, onSaved }) {
       <form onSubmit={handleSubmit}>
         <div className="field">
           <label>Amount (₹) *</label>
-          <input type="number" step="0.01" required value={form.amount} onChange={(e) => set('amount', e.target.value)} />
+          <input type="number" step="0.01" required autoFocus value={form.amount} onChange={(e) => set('amount', e.target.value)} />
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <div className="field" style={{ flex: 1 }}>
@@ -47,7 +53,7 @@ export default function PaymentModal({ loanId, onClose, onSaved }) {
           <div className="field" style={{ flex: 1 }}>
             <label>Payment Type</label>
             <select value={form.paymentType} onChange={(e) => set('paymentType', e.target.value)}>
-              {paymentTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+              {paymentTypes.map((t) => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
             </select>
           </div>
         </div>
@@ -55,6 +61,8 @@ export default function PaymentModal({ loanId, onClose, onSaved }) {
           <label>Notes</label>
           <input value={form.notes} onChange={(e) => set('notes', e.target.value)} />
         </div>
+
+        {borrowerPhone !== undefined && <NotifyBorrower phone={borrowerPhone} value={notify} onChange={setNotify} />}
 
         {error && <div style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 10 }}>{error}</div>}
 

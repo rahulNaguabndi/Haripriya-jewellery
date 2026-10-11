@@ -17,6 +17,7 @@ import {
   getDashboardInsights,
 } from '../controllers/reportController.js';
 import { getDemographics } from '../controllers/demographicsController.js';
+import { getDayBook, getAgeing, getForecast, getBorrowerScores } from '../controllers/insightsController.js';
 
 const router = Router();
 router.use(verifyAuth);
@@ -36,5 +37,9 @@ router.get('/payments-monthly', getPaymentsMonthly);
 router.get('/loans-monthly', getLoansMonthly);
 router.get('/dashboard/insights', getDashboardInsights);
 router.get('/demographics', getDemographics);
+router.get('/day-book', getDayBook);
+router.get('/ageing', getAgeing);
+router.get('/forecast', getForecast);
+router.get('/borrower-scores', getBorrowerScores);
 
 export default router;

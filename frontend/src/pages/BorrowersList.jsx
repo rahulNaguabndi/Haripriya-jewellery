@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PageHeader from '../components/common/PageHeader.jsx';
 import { api } from '../services/api.js';
 import DataTable from '../components/common/DataTable.jsx';
 import { TableSkeleton } from '../components/common/Skeleton.jsx';
 import Pagination from '../components/common/Pagination.jsx';
 import FilterBar from '../components/common/FilterBar.jsx';
 import BorrowerModal from '../components/Borrowers/BorrowerModal.jsx';
+import { useOpenFromQuery } from '../hooks/useOpenFromQuery.js';
 
 const PAGE_SIZE = 20;
 
@@ -30,6 +32,7 @@ export default function BorrowersList() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [error, setError] = useState('');
+  useOpenFromQuery(() => setShowModal(true));
 
   async function load() {
     setLoading(true);
@@ -69,10 +72,11 @@ export default function BorrowersList() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div className="font-serif" style={{ fontSize: 26, fontWeight: 600 }}>Borrowers</div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ New Borrower</button>
-      </div>
+      <PageHeader
+        title="Borrowers"
+        subtitle={total ? `${total} people on record` : 'Everyone who has pledged with you.'}
+        actions={<button className="btn btn-primary" onClick={() => setShowModal(true)}>+ New borrower</button>}
+      />
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 16 }}>
         <input
@@ -82,7 +86,7 @@ export default function BorrowersList() {
           onChange={(e) => setSearch(e.target.value)}
         />
         <button className="btn btn-secondary" onClick={() => setShowFilters((v) => !v)}>
-          {showFilters ? 'Hide Advanced Filters' : 'Advanced Filters'}
+          {showFilters ? 'Hide filters' : 'More filters'}
         </button>
       </div>
 

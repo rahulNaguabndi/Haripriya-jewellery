@@ -1,8 +1,11 @@
-export default function DataTable({ columns, rows, emptyMessage, onRowClick }) {
+import EmptyState from './EmptyState.jsx';
+
+// emptyMessage: string (shown as the empty-state title) or a full element.
+export default function DataTable({ columns, rows, emptyMessage, emptyHint, onRowClick }) {
   if (!rows || rows.length === 0) {
     return (
-      <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
-        {emptyMessage || 'No records found.'}
+      <div className="card">
+        {typeof emptyMessage === 'object' && emptyMessage ? emptyMessage : <EmptyState title={emptyMessage || 'Nothing here yet'} hint={emptyHint} compact />}
       </div>
     );
   }

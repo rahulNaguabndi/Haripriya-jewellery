@@ -12,6 +12,7 @@ import {
   setHuidVerification,
 } from '../controllers/loanController.js';
 import { listNoticesForLoan } from '../controllers/noticeController.js';
+import { listLoanPhotos, uploadLoanPhoto, deleteLoanPhoto } from '../controllers/photoController.js';
 
 const router = Router();
 router.use(verifyAuth);
@@ -26,5 +27,8 @@ router.post('/:id/rollover', rolloverLoan);
 router.get('/:id/interest-summary', getLoanInterestSummary);
 router.get('/:id/notices', listNoticesForLoan);
 router.patch('/:id/items/:itemId/huid-verification', setHuidVerification);
+router.get('/:id/photos', listLoanPhotos);
+router.post('/:id/photos', uploadLoanPhoto);
+router.delete('/:id/photos/:photoId', deleteLoanPhoto);
 
 export default router;

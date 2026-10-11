@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import PageHeader from '../components/common/PageHeader.jsx';
 import { api } from '../services/api.js';
 import DataTable from '../components/common/DataTable.jsx';
 import { TableSkeleton } from '../components/common/Skeleton.jsx';
@@ -57,7 +58,7 @@ export default function Payments() {
 
   return (
     <div>
-      <div className="font-serif" style={{ fontSize: 26, fontWeight: 600, marginBottom: 20 }}>Payments</div>
+      <PageHeader title="Payments" subtitle="Every repayment received, across all loans." />
 
       <FilterBar
         fields={filterFields}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Modal from '../common/Modal.jsx';
 import { ListSkeleton } from '../common/Skeleton.jsx';
 import { api } from '../../services/api.js';
+import { useConfirm } from '../common/ConfirmDialog.jsx';
 
 const CHANNEL_LABEL = { whatsapp: 'WhatsApp', sms: 'SMS' };
 const STATUS_TEXT = { sent: 'Sent', failed: 'Failed', skipped: 'Skipped', not_configured: 'Logged (provider not set up)' };
@@ -10,6 +11,7 @@ const STATUS_TEXT = { sent: 'Sent', failed: 'Failed', skipped: 'Skipped', not_co
 // Works before any provider keys exist: sends are then logged as
 // "not configured", so staff can see exactly who would be contacted.
 export default function SendMessageModal({ loanIds, onClose }) {
+  const confirm = useConfirm();
   const [config, setConfig] = useState(null);
   const [channels, setChannels] = useState(['whatsapp']);
   const [noticeDays, setNoticeDays] = useState(15);
@@ -42,7 +44,12 @@ export default function SendMessageModal({ loanIds, onClose }) {
 
   async function send() {
     const ready = preview.filter((p) => !p.problems.length).length;
-    if (!confirm(`Send the auction notice to ${ready} borrower(s) by ${channels.map((c) => CHANNEL_LABEL[c]).join(' + ')}?`)) return;
+    const ok = await confirm({
+      title: 'Send auction notice?',
+      message: `${ready} borrower${ready === 1 ? '' : 's'} will get it by ${channels.map((c) => CHANNEL_LABEL[c]).join(' and ')}. This can't be unsent.`,
+      confirmLabel: 'Send notice',
+    });
+    if (!ok) return;
     setSending(true);
     setError('');
     try {
