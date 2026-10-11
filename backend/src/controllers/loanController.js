@@ -5,6 +5,8 @@ import { calculateCompoundInterest } from '../utils/interestCalculator.js';
 import { getActiveInterestConfig, resolveInterestRate } from '../utils/interestConfig.js';
 import { getTodayRate, getLatestRate } from '../utils/dailyRates.js';
 import { logActivity, diffFields, inr } from '../utils/activityLog.js';
+import { scopeBranch, writeBranchId, assertBranchAccess } from '../utils/branches.js';
+import { assertReleaseOtp } from './otpController.js';
 
 async function nextLoanNumber() {
   const today = new Date();
@@ -146,7 +148,7 @@ async function replaceLoanItems(loanId, items) {
 export async function createLoan(req, res, next) {
   try {
     requireFields(req.body, ['borrowerId', 'items', 'loanAmount', 'loanDate']);
-    const { borrowerId, items, loanAmount, loanDate, dueDate, interestRate, cardGiven, repledgedFromLoanId } = req.body;
+    const { borrowerId, items, loanAmount, loanDate, dueDate, interestRate, cardGiven, repledgedFromLoanId, branchId } = req.body;
     validateItems(items);
 
     let repledgeSource = null;
@@ -175,6 +177,7 @@ export async function createLoan(req, res, next) {
 
     const appliedRate = interestRate ?? (await resolveInterestRate(loanAmount, 24));
     const loanNumber = await nextLoanNumber();
+    const loanBranchId = await writeBranchId(req, branchId);
 
     // Snapshot the day's locked metal rate for the first item's metal type
     // (today's if set, else the most recent one on record) - server-
@@ -195,6 +198,7 @@ export async function createLoan(req, res, next) {
         card_given: !!cardGiven,
         metal_rate: rateRow?.rate_per_gram ?? null,
         repledged_from_loan_id: repledgeSource?.id ?? null,
+        branch_id: loanBranchId,
         created_by: req.user.id,
       })
       .select()
@@ -210,6 +214,7 @@ export async function createLoan(req, res, next) {
       entityId: loan.id,
       loanId: loan.id,
       borrowerId,
+      branchId: loan.branch_id,
       summary: repledgeSource
         ? `Re-pledged items from ${repledgeSource.loan_number} as ${loan.loan_number} for ${inr(loanAmount)}`
         : `Created loan ${loan.loan_number} for ${inr(loanAmount)}`,
@@ -236,7 +241,7 @@ export async function listLoans(req, res, next) {
     // returned loan only contains the matching item(s), not the full set.
     const needsItemFilter = !!(req.query.metalType || req.query.itemType);
     const itemsSelect = needsItemFilter ? 'loan_items!inner(*)' : 'loan_items(*)';
-    let query = supabase.from('loans').select(`*, borrowers(name, phone), ${itemsSelect}`, { count: 'exact' });
+    let query = scopeBranch(supabase.from('loans').select(`*, borrowers(name, phone), branches(name, code), ${itemsSelect}`, { count: 'exact' }), req);
 
     if (req.query.borrowerId) query = query.eq('borrower_id', req.query.borrowerId);
     if (req.query.status) query = query.eq('status', req.query.status);
@@ -259,13 +264,14 @@ export async function getLoan(req, res, next) {
     const { data: loan, error } = await supabase
       .from('loans')
       .select(
-        '*, borrowers(id, name, phone, email, address, village, mandal, district, city, state, pincode, aadhar_or_id, care_of), loan_items(*)'
+        '*, borrowers(id, name, phone, email, address, village, mandal, district, city, state, pincode, aadhar_or_id, care_of), loan_items(*), branches(id, name, code)'
       )
       .eq('id', req.params.id)
       .maybeSingle();
 
     if (error) throw new ApiError(400, error.message);
     if (!loan) throw new ApiError(404, 'Loan not found');
+    assertBranchAccess(req, loan);
 
     const payments = await fetchPayments(loan.id);
     const config = await getActiveInterestConfig();
@@ -335,6 +341,7 @@ export async function updateLoan(req, res, next) {
       .maybeSingle();
     if (beforeError) throw new ApiError(400, beforeError.message);
     if (!before) throw new ApiError(404, 'Loan not found');
+    assertBranchAccess(req, before);
 
     const { data, error } = await supabase
       .from('loans')
@@ -373,6 +380,7 @@ export async function updateLoan(req, res, next) {
         entityId: data.id,
         loanId: data.id,
         borrowerId: data.borrower_id,
+        branchId: data.branch_id,
         summary: cardOnly ? `Marked card returned on ${data.loan_number}` : `Edited ${data.loan_number}: ${described}`,
         details: changes,
       });
@@ -402,6 +410,7 @@ export async function rolloverLoan(req, res, next) {
       .maybeSingle();
     if (oldLoanError) throw new ApiError(400, oldLoanError.message);
     if (!oldLoan) throw new ApiError(404, 'Loan not found');
+    assertBranchAccess(req, oldLoan);
     if (oldLoan.status === 'closed') throw new ApiError(400, 'This loan is already closed.');
     if (oldLoan.card_given && !oldLoan.card_returned) {
       throw new ApiError(400, 'Card must be marked returned before rolling over this loan.');
@@ -451,6 +460,8 @@ export async function rolloverLoan(req, res, next) {
         card_given: !!cardGiven,
         metal_rate: rateRow?.rate_per_gram ?? null,
         previous_loan_id: oldLoan.id,
+        // The packet stays where it is - same branch as the loan it replaces.
+        branch_id: oldLoan.branch_id,
         created_by: req.user.id,
       })
       .select()
@@ -466,6 +477,7 @@ export async function rolloverLoan(req, res, next) {
       entityId: newLoan.id,
       loanId: oldLoan.id,
       borrowerId: oldLoan.borrower_id,
+      branchId: oldLoan.branch_id,
       summary:
         `Rolled over ${oldLoan.loan_number} into ${newLoan.loan_number}: interest ${inr(interestCollected)} collected, new amount ${inr(loanAmount)}` +
         (waiver.interest_waived > 0 ? ` (${inr(waiver.interest_waived)} reduced: ${waiver.interest_waiver_reason})` : ''),
@@ -487,7 +499,7 @@ export async function updateLoanStatus(req, res, next) {
       throw new ApiError(400, `status must be one of: ${validStatuses.join(', ')}`);
     }
 
-    const { closureDate, interestCollected, cardReturned, waiverReason } = req.body;
+    const { closureDate, interestCollected, cardReturned, waiverReason, otpId, otpOverrideReason } = req.body;
     const update = { status: req.body.status, updated_at: new Date().toISOString() };
 
     const { data: existing, error: existingError } = await supabase
@@ -497,7 +509,9 @@ export async function updateLoanStatus(req, res, next) {
       .maybeSingle();
     if (existingError) throw new ApiError(400, existingError.message);
     if (!existing) throw new ApiError(404, 'Loan not found');
+    assertBranchAccess(req, existing);
 
+    let otpCheck = null;
     if (req.body.status === 'closed') {
       requireFields(req.body, ['closureDate', 'interestCollected']);
       update.closure_date = closureDate;
@@ -509,6 +523,10 @@ export async function updateLoanStatus(req, res, next) {
         throw new ApiError(400, 'Card must be marked returned before closing this loan.');
       }
       if (cardReturned !== undefined) update.card_returned = !!cardReturned;
+
+      // Ornaments are handed back on closure - check the borrower's OTP
+      // (enforced only when the business turns it on; see otpController).
+      if (existing.status !== 'closed') otpCheck = await assertReleaseOtp(req, existing, { otpId, otpOverrideReason });
     }
 
     const { data, error } = await supabase
@@ -528,9 +546,11 @@ export async function updateLoanStatus(req, res, next) {
         entityId: data.id,
         loanId: data.id,
         borrowerId: data.borrower_id,
-        summary: `Closed ${data.loan_number} on ${closureDate}: interest ${inr(interestCollected)} collected`,
-        details: { closureDate, interestCollected, previousStatus: existing.status },
+        branchId: data.branch_id,
+        summary: `Closed ${data.loan_number} on ${closureDate}: interest ${inr(interestCollected)} collected` + (otpCheck?.summary ? ` (${otpCheck.summary})` : ''),
+        details: { closureDate, interestCollected, previousStatus: existing.status, releaseCheck: otpCheck?.details || null },
       });
+      if (otpCheck?.consume) await otpCheck.consume();
       if (update.interest_waived > 0) await logWaiver(req, data, update, interestCollected);
     } else if (existing.status !== data.status) {
       await logActivity(req, {
@@ -686,6 +706,44 @@ export async function setHuidVerification(req, res, next) {
       entityId: item.id,
       loanId: req.params.id,
       summary: verified ? `Recorded HUID ${item.huid} as verified in BIS CARE${note ? `: ${note}` : ''}` : `Cleared HUID ${item.huid} verification`,
+    });
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /api/loans/:id/branch { branchId } - admin only. The packet has
+// physically moved to another branch (its locker), so the loan, its
+// payments and future cash follow it.
+export async function transferLoanBranch(req, res, next) {
+  try {
+    requireFields(req.body, ['branchId']);
+    const { data: loan, error } = await supabase.from('loans').select('id, loan_number, borrower_id, branch_id, branches(name)').eq('id', req.params.id).maybeSingle();
+    if (error) throw new ApiError(400, error.message);
+    if (!loan) throw new ApiError(404, 'Loan not found');
+    const target = await writeBranchId(req, req.body.branchId);
+    if (target === loan.branch_id) return res.json(loan);
+
+    const { data, error: updateError } = await supabase
+      .from('loans')
+      .update({ branch_id: target, updated_at: new Date().toISOString() })
+      .eq('id', loan.id)
+      .select('*, branches(id, name, code)')
+      .single();
+    if (updateError) throw new ApiError(400, updateError.message);
+    const { error: paymentsError } = await supabase.from('payments').update({ branch_id: target }).eq('loan_id', loan.id);
+    if (paymentsError) throw new ApiError(400, paymentsError.message);
+
+    await logActivity(req, {
+      action: 'loan.branch_transfer',
+      entityType: 'loan',
+      entityId: loan.id,
+      loanId: loan.id,
+      borrowerId: loan.borrower_id,
+      branchId: target,
+      summary: `Moved ${loan.loan_number} from ${loan.branches?.name || 'no branch'} to ${data.branches?.name}`,
+      details: { from: loan.branch_id, to: target },
     });
     res.json(data);
   } catch (err) {

@@ -6,6 +6,7 @@ import StatCard from '../components/common/StatCard.jsx';
 import DataTable from '../components/common/DataTable.jsx';
 import { TableSkeleton } from '../components/common/Skeleton.jsx';
 import { formatCurrency } from '../utils/formatters.js';
+import CashClose from '../components/DayBook/CashClose.jsx';
 
 const MODE_LABELS = { cash: 'Cash', upi: 'UPI', cheque: 'Cheque', transfer: 'Bank transfer' };
 const KIND_LABELS = { new: 'New', rollover: 'Rollover', repledge: 'Re-pledge' };
@@ -160,6 +161,8 @@ export default function DayBook() {
           </div>
         </div>
       )}
+
+      {!error && <CashClose date={date} />}
 
       {loading ? (
         <div style={{ marginTop: 28 }}><TableSkeleton columns={5} rows={6} /></div>

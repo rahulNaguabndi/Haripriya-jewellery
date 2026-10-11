@@ -8,6 +8,26 @@ import { ListSkeleton } from '../components/common/Skeleton.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
 import GlobalSearch from '../components/common/GlobalSearch.jsx';
 import { Kbd } from '../components/common/Kbd.jsx';
+import RateRiskModal from '../components/Coverage/RateRiskModal.jsx';
+import { useBranch } from '../context/BranchContext.jsx';
+
+// The risk check pops up once per new rate (per branch view), the first
+// time the dashboard is opened after the rate moves.
+const SEEN_KEY = 'rateRiskSeen';
+function riskSeen(key) {
+  try {
+    return localStorage.getItem(SEEN_KEY) === key;
+  } catch {
+    return false;
+  }
+}
+function markRiskSeen(key) {
+  try {
+    localStorage.setItem(SEEN_KEY, key);
+  } catch {
+    // Storage blocked: the pop-up may show again next visit - harmless.
+  }
+}
 
 export default function Dashboard() {
   const [loanCounts, setLoanCounts] = useState({ loading: true, data: null, error: null });
@@ -20,6 +40,9 @@ export default function Dashboard() {
   const [notices, setNotices] = useState({ loading: true, data: null, error: null });
   const [coverage, setCoverage] = useState({ loading: true, data: null, error: null });
   const [dayBook, setDayBook] = useState({ loading: true, data: null, error: null });
+  const [rateRisk, setRateRisk] = useState({ loading: true, data: null, error: null });
+  const [showRisk, setShowRisk] = useState(false);
+  const { branchId, currentBranch } = useBranch();
 
   useEffect(() => {
     api
@@ -76,7 +99,24 @@ export default function Dashboard() {
       .get('/coverage')
       .then((res) => setCoverage({ loading: false, data: res.data.data, error: null }))
       .catch((err) => setCoverage({ loading: false, data: null, error: err.message }));
+
+    api
+      .get('/coverage/rate-risk')
+      .then((res) => setRateRisk({ loading: false, data: res.data, error: null }))
+      .catch((err) => setRateRisk({ loading: false, data: null, error: err.message }));
   }, []);
+
+  // Auto-open the risk check when the rate has moved since the user last saw it.
+  const riskKey = rateRisk.data?.asOf ? `${rateRisk.data.asOf}:${branchId}` : null;
+  const rateMoved = rateRisk.data?.rates?.some((r) => r.changePct);
+  useEffect(() => {
+    if (riskKey && rateMoved && !riskSeen(riskKey)) setShowRisk(true);
+  }, [riskKey, rateMoved]);
+
+  function closeRisk() {
+    if (riskKey) markRiskSeen(riskKey);
+    setShowRisk(false);
+  }
 
   function tileValue(tile, format = (v) => v) {
     if (tile.loading) return '…';
@@ -137,6 +177,8 @@ export default function Dashboard() {
           }
           cta={rateSetToday ? undefined : "Set today's rate"}
         />
+
+        <RiskTile state={rateRisk} onOpen={() => setShowRisk(true)} />
 
         <InsightCard
           to="/day-book"
@@ -266,6 +308,32 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      {showRisk && rateRisk.data && <RateRiskModal data={rateRisk.data} branchName={currentBranch?.name} onClose={closeRisk} />}
     </div>
+  );
+}
+
+// Headline of the rate-move risk check; opens the full breakdown.
+function RiskTile({ state, onOpen }) {
+  const d = state.data;
+  const gold = d?.rates?.find((r) => r.metal === 'Gold');
+  const urgent = d ? d.summary.byRisk.critical + d.summary.byRisk.high : 0;
+  const change = gold?.changePct;
+  return (
+    <button type="button" className="tile-button" onClick={onOpen} disabled={!d} aria-label="Open rate move risk check">
+      <InsightCard
+        tone={!d ? 'neutral' : d.summary.byRisk.critical ? 'red' : urgent ? 'amber' : 'green'}
+        label="Rate Move Risk"
+        loading={state.loading}
+        value={d ? `${urgent} to call` : '—'}
+        sublabel={
+          d
+            ? `${change ? `Gold ${change < 0 ? '▼' : '▲'} ${Math.abs(change)}% · ` : ''}${d.summary.newlyRed} newly under · ${formatCurrency(d.summary.shortfall)} short`
+            : state.error || ''
+        }
+        cta={d ? 'See risk check' : undefined}
+      />
+    </button>
   );
 }

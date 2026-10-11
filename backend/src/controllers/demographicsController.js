@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabaseClient.js';
 import { ApiError } from '../middleware/errorHandler.js';
+import { scopeBranch } from '../utils/branches.js';
 
 const OPEN_STATUSES = ['active', 'partial_payment'];
 const UNKNOWN = 'Not recorded';
@@ -58,7 +59,7 @@ export async function getDemographics(req, res, next) {
   try {
     const [{ data: borrowers, error: bErr }, { data: loans, error: lErr }] = await Promise.all([
       supabase.from('borrowers').select('id, village, mandal, district, city, state').eq('is_deleted', false),
-      supabase.from('loans').select('id, borrower_id, loan_amount, status, loan_items(metal_type)'),
+      scopeBranch(supabase.from('loans').select('id, borrower_id, loan_amount, status, loan_items(metal_type)'), req),
     ]);
     if (bErr) throw new ApiError(400, bErr.message);
     if (lErr) throw new ApiError(400, lErr.message);
@@ -74,6 +75,8 @@ export async function getDemographics(req, res, next) {
     let missingVillage = 0;
 
     for (const b of borrowers || []) {
+      // Viewing one branch: only the customers who borrowed there.
+      if (req.branchId && !loansByBorrower.has(b.id)) continue;
       const district = childOf(districts, b.district);
       const mandal = childOf(district.children, b.mandal);
       const village = childOf(mandal.children, b.village || b.city);

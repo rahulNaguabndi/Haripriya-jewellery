@@ -212,6 +212,27 @@ JS — controllers do the mapping manually field-by-field (no ORM/schema layer).
   signed URLs (1h). The browser compresses first (`utils/imageCompress.js`,
   ≤120 KB WebP/JPEG); the server rejects >400 KB or non-image bytes. ID
   documents are deliberately not stored.
+- **Branches**: `utils/branches.js`. `verifyAuth` sets `req.branchId` from the
+  `X-Branch-Id` header (frontend `BranchContext` + `services/api.js`), null =
+  all branches; staff with `admin_users.branch_id` are pinned to it. Reads use
+  `scopeBranch(query, req)`, writes `writeBranchId(req, requested)`, single-
+  record actions `assertBranchAccess`. Loans/payments/lockers/cash_closes/
+  activity_log carry `branch_id`; payments copy the loan's. Borrowers, rates,
+  settings and borrower scores are business-wide. Any new loan/payment read
+  must be scoped. `AppShell` keys `<main>` on the branch so pages refetch.
+- **Cash close**: `controllers/cashCloseController.js` (`/api/cash-close`),
+  one row per branch per day, built on `buildDayBook()`; only cash-mode
+  payments + closures - payouts count toward the drawer.
+- **Release OTP**: `controllers/otpController.js` (Twilio SMS, HMAC-hashed
+  codes). `assertReleaseOtp` runs on loan close; enforced only when
+  `business_profile.require_release_otp`. Without Twilio keys, non-production
+  returns the code as `devCode` for testing.
+- **Nightly email**: `services/digest/dailyDigest.js` + `services/email/mailer.js`
+  (nodemailer SMTP), triggered by `.github/workflows/daily-digest.yml` →
+  `POST /api/digest/run` with `X-Cron-Key` (= `CRON_SECRET`).
+- **Rate-move risk**: `GET /api/coverage/rate-risk` compares cover at the
+  latest vs previous daily rate and crosses it with borrower score; the
+  Dashboard pops it up once per new rate (`RateRiskModal`).
 - `controllers/insightsController.js`: day book (`/reports/day-book`),
   ageing, forecast, borrower scores (`utils/borrowerScore.js` - transparent
   points per factor). `controllers/searchController.js`: `/api/search`.

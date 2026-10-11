@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { verifyAuth } from '../middleware/auth.js';
+import { verifyAuth, requireRole } from '../middleware/auth.js';
 import {
   createLoan,
   listLoans,
@@ -10,7 +10,9 @@ import {
   rolloverLoan,
   checkHuid,
   setHuidVerification,
+  transferLoanBranch,
 } from '../controllers/loanController.js';
+import { sendReleaseOtp, verifyReleaseOtp } from '../controllers/otpController.js';
 import { listNoticesForLoan } from '../controllers/noticeController.js';
 import { listLoanPhotos, uploadLoanPhoto, deleteLoanPhoto } from '../controllers/photoController.js';
 
@@ -24,6 +26,9 @@ router.get('/:id', getLoan);
 router.put('/:id', updateLoan);
 router.patch('/:id/status', updateLoanStatus);
 router.post('/:id/rollover', rolloverLoan);
+router.patch('/:id/branch', requireRole('super_admin', 'admin'), transferLoanBranch);
+router.post('/:id/release-otp', sendReleaseOtp);
+router.post('/:id/release-otp/verify', verifyReleaseOtp);
 router.get('/:id/interest-summary', getLoanInterestSummary);
 router.get('/:id/notices', listNoticesForLoan);
 router.patch('/:id/items/:itemId/huid-verification', setHuidVerification);

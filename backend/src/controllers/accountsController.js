@@ -4,6 +4,9 @@ import { ApiError } from '../middleware/errorHandler.js';
 import { calculateCompoundInterest } from '../utils/interestCalculator.js';
 import { getActiveInterestConfig } from '../utils/interestConfig.js';
 import { fetchAll } from '../utils/fetchAll.js';
+import { listBranches } from '../utils/branches.js';
+
+const inBranch = (query, branchId) => (branchId ? query.eq('branch_id', branchId) : query);
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -43,26 +46,25 @@ const sum = (rows, key) => round2(rows.reduce((n, r) => n + (Number(r[key]) || 0
 //    realised when the loan is closed, as `interest_collected`.
 //  - "Interest accrued (unrealised)" on open loans is what the borrower
 //    would owe as of the period end - not income until collected.
-async function buildLedger({ from, to }) {
+async function buildLedger({ from, to, branchId = null }) {
   const asOf = new Date(Math.min(Date.now(), new Date(`${to}T23:59:59`).getTime()));
 
   const [loans, payments, notices, config] = await Promise.all([
     fetchAll(() =>
-      supabase
-        .from('loans')
-        .select(
-          'id, loan_number, packet_number, loan_date, loan_amount, interest_rate, interest_type, status, closure_date, interest_collected, metal_type, previous_loan_id, borrowers(name, phone, village, district, city), loan_items(item_type, metal_type, gross_weight, net_weight, purity, huid)'
-        )
-        .lte('loan_date', to)
+      inBranch(
+        supabase
+          .from('loans')
+          .select(
+            'id, loan_number, packet_number, loan_date, loan_amount, interest_rate, interest_type, status, closure_date, interest_collected, metal_type, previous_loan_id, borrowers(name, phone, village, district, city), loan_items(item_type, metal_type, gross_weight, net_weight, purity, huid)'
+          )
+          .lte('loan_date', to),
+        branchId
+      )
         .order('loan_date', { ascending: true })
         .order('id', { ascending: true })
     ),
     fetchAll(() =>
-      supabase
-        .from('payments')
-        .select('id, loan_id, amount, payment_date, payment_type, notes')
-        .eq('is_deleted', false)
-        .lte('payment_date', to)
+      inBranch(supabase.from('payments').select('id, loan_id, amount, payment_date, payment_type, notes').eq('is_deleted', false).lte('payment_date', to), branchId)
         .order('payment_date', { ascending: true })
         .order('id', { ascending: true })
     ),
@@ -184,7 +186,7 @@ function txBase(r) {
 
 export async function getLedger(req, res, next) {
   try {
-    res.json(await buildLedger(resolvePeriod(req.query)));
+    res.json(await buildLedger({ ...resolvePeriod(req.query), branchId: req.branchId }));
   } catch (err) {
     next(err);
   }
@@ -306,9 +308,10 @@ function addSummarySheet(workbook, ledger, businessName) {
 export async function exportLedgerXlsx(req, res, next) {
   try {
     const period = resolvePeriod(req.query);
-    const ledger = await buildLedger(period);
+    const ledger = await buildLedger({ ...period, branchId: req.branchId });
     const { data: profile } = await supabase.from('business_profile').select('legal_name').eq('is_active', true).maybeSingle();
-    const businessName = profile?.legal_name || 'Haripriya Jewels';
+    const branch = req.branchId ? (await listBranches()).find((b) => b.id === req.branchId) : null;
+    const businessName = `${profile?.legal_name || 'Haripriya Jewels'}${branch ? ` - ${branch.name}` : ''}`;
 
     const rows = ledger.loans.map((r) => ({ ...r, metalLabel: METAL_LABEL[r.metal] }));
     const workbook = new ExcelJS.Workbook();
@@ -322,7 +325,7 @@ export async function exportLedgerXlsx(req, res, next) {
     addTableSheet(workbook, 'Mixed', LOAN_COLUMNS, rows.filter((r) => r.metal === 'mixed'));
     addTableSheet(workbook, 'Transactions', TX_COLUMNS, ledger.transactions);
 
-    const filename = `loan-accounts_${period.from}_to_${period.to}.xlsx`;
+    const filename = `loan-accounts${branch ? `_${branch.code}` : ''}_${period.from}_to_${period.to}.xlsx`;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     await workbook.xlsx.write(res);

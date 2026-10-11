@@ -2,9 +2,10 @@ import { supabase } from '../config/supabaseClient.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { calculateCompoundInterest } from '../utils/interestCalculator.js';
 import { getActiveInterestConfig } from '../utils/interestConfig.js';
+import { scopeBranch } from '../utils/branches.js';
 
-async function loansWithInterest(filterFn) {
-  const { data: loans, error } = await supabase.from('loans').select('*, borrowers(name, phone)');
+async function loansWithInterest(req, filterFn) {
+  const { data: loans, error } = await scopeBranch(supabase.from('loans').select('*, borrowers(name, phone)'), req);
   if (error) throw new ApiError(400, error.message);
 
   const relevant = filterFn ? loans.filter(filterFn) : loans;
@@ -41,11 +42,11 @@ async function loansWithInterest(filterFn) {
 // waiting on one large combined endpoint.
 export async function getLoanCounts(req, res, next) {
   try {
-    const { count: totalLoans } = await supabase.from('loans').select('id', { count: 'exact', head: true });
-    const { count: activeLoans } = await supabase
-      .from('loans')
-      .select('id', { count: 'exact', head: true })
-      .in('status', ['active', 'partial_payment']);
+    const { count: totalLoans } = await scopeBranch(supabase.from('loans').select('id', { count: 'exact', head: true }), req);
+    const { count: activeLoans } = await scopeBranch(supabase.from('loans').select('id', { count: 'exact', head: true }), req).in('status', [
+      'active',
+      'partial_payment',
+    ]);
 
     res.json({ totalLoans: totalLoans || 0, activeLoans: activeLoans || 0 });
   } catch (err) {
@@ -68,7 +69,7 @@ export async function getBorrowerCount(req, res, next) {
 
 export async function getOutstandingTotals(req, res, next) {
   try {
-    const openLoans = await loansWithInterest((l) => ['active', 'partial_payment'].includes(l.status));
+    const openLoans = await loansWithInterest(req, (l) => ['active', 'partial_payment'].includes(l.status));
     const totalInterestOutstanding = openLoans.reduce((sum, l) => sum + l.interest.totalInterestAccrued, 0);
     const totalPrincipalOutstanding = openLoans.reduce((sum, l) => sum + l.interest.principalRemaining, 0);
 
@@ -84,9 +85,7 @@ export async function getOutstandingTotals(req, res, next) {
 export async function getRecentPayments(req, res, next) {
   try {
     const limit = Math.min(50, parseInt(req.query.limit) || 10);
-    const { data: recentPayments, error } = await supabase
-      .from('payments')
-      .select('*, loans(loan_number), borrowers(name)')
+    const { data: recentPayments, error } = await scopeBranch(supabase.from('payments').select('*, loans(loan_number), borrowers(name)'), req)
       .eq('is_deleted', false)
       .order('created_at', { ascending: false })
       .limit(limit);
@@ -100,23 +99,21 @@ export async function getRecentPayments(req, res, next) {
 
 export async function getSummary(req, res, next) {
   try {
-    const { count: totalLoans } = await supabase.from('loans').select('id', { count: 'exact', head: true });
-    const { count: activeLoans } = await supabase
-      .from('loans')
-      .select('id', { count: 'exact', head: true })
-      .in('status', ['active', 'partial_payment']);
+    const { count: totalLoans } = await scopeBranch(supabase.from('loans').select('id', { count: 'exact', head: true }), req);
+    const { count: activeLoans } = await scopeBranch(supabase.from('loans').select('id', { count: 'exact', head: true }), req).in('status', [
+      'active',
+      'partial_payment',
+    ]);
     const { count: totalBorrowers } = await supabase
       .from('borrowers')
       .select('id', { count: 'exact', head: true })
       .eq('is_deleted', false);
 
-    const openLoans = await loansWithInterest((l) => ['active', 'partial_payment'].includes(l.status));
+    const openLoans = await loansWithInterest(req, (l) => ['active', 'partial_payment'].includes(l.status));
     const totalInterestOutstanding = openLoans.reduce((sum, l) => sum + l.interest.totalInterestAccrued, 0);
     const totalPrincipalOutstanding = openLoans.reduce((sum, l) => sum + l.interest.principalRemaining, 0);
 
-    const { data: recentPayments } = await supabase
-      .from('payments')
-      .select('*, loans(loan_number), borrowers(name)')
+    const { data: recentPayments } = await scopeBranch(supabase.from('payments').select('*, loans(loan_number), borrowers(name)'), req)
       .eq('is_deleted', false)
       .order('created_at', { ascending: false })
       .limit(10);
@@ -139,7 +136,7 @@ export async function getBorrowerSummary(req, res, next) {
     const { data: borrowers, error } = await supabase.from('borrowers').select('*').eq('is_deleted', false);
     if (error) throw new ApiError(400, error.message);
 
-    const openLoans = await loansWithInterest();
+    const openLoans = await loansWithInterest(req);
     const summaries = borrowers.map((b) => {
       const loans = openLoans.filter((l) => l.borrower_id === b.id);
       return {
@@ -160,7 +157,7 @@ export async function getBorrowerSummary(req, res, next) {
 
 export async function getOutstandingInterest(req, res, next) {
   try {
-    const loans = await loansWithInterest((l) => ['active', 'partial_payment'].includes(l.status));
+    const loans = await loansWithInterest(req, (l) => ['active', 'partial_payment'].includes(l.status));
     res.json({ data: loans });
   } catch (err) {
     next(err);
@@ -169,10 +166,7 @@ export async function getOutstandingInterest(req, res, next) {
 
 export async function getPaymentsReport(req, res, next) {
   try {
-    let query = supabase
-      .from('payments')
-      .select('*, loans(loan_number), borrowers(name)')
-      .eq('is_deleted', false);
+    let query = scopeBranch(supabase.from('payments').select('*, loans(loan_number), borrowers(name)'), req).eq('is_deleted', false);
 
     if (req.query.dateFrom) query = query.gte('payment_date', req.query.dateFrom);
     if (req.query.dateTo) query = query.lte('payment_date', req.query.dateTo);
@@ -189,6 +183,7 @@ export async function getOverdueLoans(req, res, next) {
   try {
     const today = new Date().toISOString().slice(0, 10);
     const loans = await loansWithInterest(
+      req,
       (l) => ['active', 'partial_payment'].includes(l.status) && l.due_date && l.due_date < today
     );
     res.json({ data: loans });
@@ -199,9 +194,7 @@ export async function getOverdueLoans(req, res, next) {
 
 export async function getClosedLoans(req, res, next) {
   try {
-    const { data, error } = await supabase
-      .from('loans')
-      .select('*, borrowers(name, phone)')
+    const { data, error } = await scopeBranch(supabase.from('loans').select('*, borrowers(name, phone)'), req)
       .eq('status', 'closed')
       .order('updated_at', { ascending: false });
 
@@ -223,7 +216,7 @@ export async function getClosedLoans(req, res, next) {
 // Loan count by status - drives the status donut on the Reports overview.
 export async function getStatusBreakdown(req, res, next) {
   try {
-    const { data: loans, error } = await supabase.from('loans').select('status');
+    const { data: loans, error } = await scopeBranch(supabase.from('loans').select('status'), req);
     if (error) throw new ApiError(400, error.message);
 
     const counts = { active: 0, partial_payment: 0, closed: 0, defaulted: 0 };
@@ -263,9 +256,7 @@ export async function getPaymentsMonthly(req, res, next) {
     const axis = lastMonthsAxis(months);
     const since = `${axis[0]}-01`;
 
-    const { data: payments, error } = await supabase
-      .from('payments')
-      .select('amount, payment_date')
+    const { data: payments, error } = await scopeBranch(supabase.from('payments').select('amount, payment_date'), req)
       .eq('is_deleted', false)
       .gte('payment_date', since);
     if (error) throw new ApiError(400, error.message);
@@ -290,9 +281,7 @@ export async function getLoansMonthly(req, res, next) {
     const axis = lastMonthsAxis(months);
     const since = `${axis[0]}-01`;
 
-    const { data: loans, error } = await supabase
-      .from('loans')
-      .select('loan_amount, loan_date')
+    const { data: loans, error } = await scopeBranch(supabase.from('loans').select('loan_amount, loan_date'), req)
       .gte('loan_date', since);
     if (error) throw new ApiError(400, error.message);
 
@@ -323,6 +312,12 @@ export async function getDashboardInsights(req, res, next) {
       .toISOString()
       .slice(0, 10);
     const monthStartIso = `${todayIso.slice(0, 7)}-01`;
+    const loans = (cols, opts) => scopeBranch(supabase.from('loans').select(cols, opts), req);
+    // Notices have no branch of their own - filter through the loan.
+    const notices = () =>
+      req.branchId
+        ? supabase.from('loan_notices').select('id, loans!inner(branch_id)', { count: 'exact', head: true }).eq('loans.branch_id', req.branchId)
+        : supabase.from('loan_notices').select('id', { count: 'exact', head: true });
 
     const [
       newToday,
@@ -332,23 +327,19 @@ export async function getDashboardInsights(req, res, next) {
       noticesMonth,
       noticesTotal,
     ] = await Promise.all([
-      supabase.from('loans').select('id', { count: 'exact', head: true }).eq('loan_date', todayIso),
-      supabase.from('loans').select('id', { count: 'exact', head: true }).eq('loan_date', yesterdayIso),
+      loans('id', { count: 'exact', head: true }).eq('loan_date', todayIso),
+      loans('id', { count: 'exact', head: true }).eq('loan_date', yesterdayIso),
       // Open loans over a year old that have never received a payment.
-      supabase
-        .from('loans')
-        .select('loan_amount')
+      loans('loan_amount')
         .in('status', ['active', 'partial_payment'])
         .lte('loan_date', oneYearAgoIso)
         .eq('total_payment_received', 0),
-      supabase
-        .from('loans')
-        .select('id', { count: 'exact', head: true })
+      loans('id', { count: 'exact', head: true })
         .in('status', ['active', 'partial_payment'])
         .not('due_date', 'is', null)
         .lt('due_date', todayIso),
-      supabase.from('loan_notices').select('id', { count: 'exact', head: true }).gte('sent_date', monthStartIso),
-      supabase.from('loan_notices').select('id', { count: 'exact', head: true }),
+      notices().gte('sent_date', monthStartIso),
+      notices(),
     ]);
 
     const staleValue = (staleLoans.data || []).reduce((sum, l) => sum + (Number(l.loan_amount) || 0), 0);

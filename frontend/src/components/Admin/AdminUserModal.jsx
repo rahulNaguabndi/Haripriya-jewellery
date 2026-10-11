@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import Modal from '../common/Modal.jsx';
 import { api } from '../../services/api.js';
+import { useBranch } from '../../context/BranchContext.jsx';
 
 export default function AdminUserModal({ onClose, onSaved }) {
-  const [form, setForm] = useState({ email: '', password: '', fullName: '', role: 'staff' });
+  const [form, setForm] = useState({ email: '', password: '', fullName: '', role: 'staff', branchId: '' });
+  const { activeBranches, multiBranch } = useBranch();
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -16,7 +18,7 @@ export default function AdminUserModal({ onClose, onSaved }) {
     setSaving(true);
     setError('');
     try {
-      await api.post('/admin/users', form);
+      await api.post('/admin/users', { ...form, branchId: form.branchId || null });
       onSaved();
     } catch (err) {
       setError(err.message);
@@ -48,6 +50,16 @@ export default function AdminUserModal({ onClose, onSaved }) {
             <option value="super_admin">Super Admin</option>
           </select>
         </div>
+        {multiBranch && (
+          <div className="field">
+            <label>Branch</label>
+            <select value={form.branchId} onChange={(e) => set('branchId', e.target.value)}>
+              <option value="">All branches</option>
+              {activeBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>Staff with a branch only see and work on that branch.</div>
+          </div>
+        )}
 
         {error && <div style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 10 }}>{error}</div>}
 

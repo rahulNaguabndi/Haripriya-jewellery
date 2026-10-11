@@ -1,0 +1,53 @@
+name: Nightly email summary
+
+# Emails the owner the day's summary (cash per branch, counter close status,
+# rate move and the riskiest loans) at ~21:30 IST. The backend builds and
+# sends the email (POST /api/digest/run); this job only triggers it, so SMTP
+# credentials stay on Render, not in GitHub.
+#
+# Secrets (Settings -> Secrets and variables -> Actions):
+#   DIGEST_API_URL   e.g. https://haripriya-jewellery.onrender.com/api
+#   CRON_SECRET      same value as CRON_SECRET on the Render backend
+#
+# GitHub cron is UTC-only and best-effort (can run a few minutes late);
+# the :07 minute avoids the heavily contended :00/:30 ticks.
+on:
+  schedule:
+    - cron: "7 16 * * *" # 16:07 UTC = 21:37 IST
+  workflow_dispatch: {} # manual "Run workflow" button for testing
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    env:
+      API: ${{ secrets.DIGEST_API_URL }}
+    steps:
+      - name: Wake Render server (retry through cold start)
+        run: |
+          base="${API%/api}"
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 90 "$base/api/health" || echo 000)
+            echo "attempt $i: /api/health -> $code"
+            [ "$code" = "200" ] && break
+            sleep 15
+          done
+
+      - name: Send the day summary
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          code=$(curl -s -o /tmp/body.json -w '%{http_code}' --max-time 120 \
+            -X POST "$API/digest/run" -H "X-Cron-Key: $CRON_SECRET")
+          echo "/digest/run -> $code"
+          cat /tmp/body.json || true
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::error::Digest run failed (HTTP $code)"
+            exit 1
+          fi
+          if grep -q '"status":"not_configured"' /tmp/body.json; then
+            echo "::warning::SMTP is not configured on the backend - nothing was emailed"
+          fi

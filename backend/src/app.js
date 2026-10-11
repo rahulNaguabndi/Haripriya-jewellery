@@ -19,6 +19,9 @@ import messageRoutes from './routes/messages.js';
 import businessProfileRoutes from './routes/businessProfile.js';
 import activityRoutes from './routes/activity.js';
 import searchRoutes from './routes/search.js';
+import branchRoutes from './routes/branches.js';
+import cashCloseRoutes from './routes/cashClose.js';
+import digestRoutes from './routes/digest.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { getBrandTheme } from './controllers/adminController.js';
 
@@ -57,6 +60,9 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/business-profile', businessProfileRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/branches', branchRoutes);
+app.use('/api/cash-close', cashCloseRoutes);
+app.use('/api/digest', digestRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
