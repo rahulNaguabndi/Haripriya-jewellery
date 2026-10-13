@@ -3,6 +3,9 @@ import Modal from '../common/Modal.jsx';
 import InterestWaiverFields, { needsWaiverReason, waiverReasonText } from './InterestWaiverFields.jsx';
 import NotifyBorrower from '../Messaging/NotifyBorrower.jsx';
 import { useInterestAsOf } from '../../hooks/useInterestAsOf.js';
+import ReleaseOtp from './ReleaseOtp.jsx';
+import { api } from '../../services/api.js';
+import { useMyRole, isAdminRole } from '../../hooks/useMyRole.js';
 
 export default function LoanClosureModal({ loan, onConfirm, onCancel }) {
   const [closureDate, setClosureDate] = useState(new Date().toISOString().slice(0, 10));
@@ -14,7 +17,17 @@ export default function LoanClosureModal({ loan, onConfirm, onCancel }) {
   const [notify, setNotify] = useState([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [otp, setOtp] = useState({ otpId: null, verified: false, overrideReason: '' });
+  const [otpRequired, setOtpRequired] = useState(false);
+  const role = useMyRole();
   const cardNeedsReturn = loan.card_given && !loan.card_returned;
+
+  useEffect(() => {
+    api
+      .get('/business-profile')
+      .then((res) => setOtpRequired(!!res.data.require_release_otp))
+      .catch(() => {});
+  }, []);
 
   // Follow the calculated figure as the date changes, until staff type
   // their own number.
@@ -28,6 +41,10 @@ export default function LoanClosureModal({ loan, onConfirm, onCancel }) {
     if (interestCollected === '' || Number(interestCollected) < 0) return setError('Interest collected is required and must be 0 or more.');
     if (needsWaiverReason(calculated, interestCollected, waiver)) return setError('Give a reason for collecting less than the calculated interest.');
     if (cardNeedsReturn && !cardReturnedNow) return setError('Confirm the card has been returned before closing this loan.');
+    if (otpRequired && !otp.verified && !(isAdminRole(role) && otp.overrideReason.trim())) {
+      return setError(isAdminRole(role) ? 'Verify the OTP, or give a reason for releasing without one.' : 'Verify the borrower with an OTP before closing.');
+    }
+    if (otp.otpId && !otp.verified && !otpRequired) return setError('Finish verifying the OTP, or close this dialog and start again without it.');
     setError('');
     setSaving(true);
     try {
@@ -37,6 +54,8 @@ export default function LoanClosureModal({ loan, onConfirm, onCancel }) {
         cardReturned: cardReturnedNow,
         waiverReason: waiverReasonText(waiver) || undefined,
         notifyChannels: notify,
+        otpId: otp.verified ? otp.otpId : undefined,
+        otpOverrideReason: !otp.verified && otp.overrideReason.trim() ? otp.overrideReason.trim() : undefined,
       });
     } catch (err) {
       setError(err.message);
@@ -81,6 +100,15 @@ export default function LoanClosureModal({ loan, onConfirm, onCancel }) {
             </label>
           </div>
         )}
+
+        <ReleaseOtp
+          loanId={loan.id}
+          phone={loan.borrowers?.phone}
+          required={otpRequired}
+          isAdmin={isAdminRole(role)}
+          value={otp}
+          onChange={setOtp}
+        />
 
         <NotifyBorrower phone={loan.borrowers?.phone} value={notify} onChange={setNotify} label="Send closure confirmation" />
 

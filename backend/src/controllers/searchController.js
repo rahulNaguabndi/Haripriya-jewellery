@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabaseClient.js';
 import { ApiError } from '../middleware/errorHandler.js';
+import { pinnedBranchId } from '../utils/branches.js';
 
 const LIMIT = 8;
 const HUID = /^[A-Z0-9]{6}$/;
@@ -21,6 +22,7 @@ function summariseLoan(loan) {
     borrowerId: loan.borrower_id,
     borrowerName: loan.borrowers?.name || null,
     borrowerPhone: loan.borrowers?.phone || null,
+    branchName: loan.branches?.name || null,
     items: items.map((i) => ({
       itemType: i.item_type,
       metalType: i.metal_type,
@@ -32,7 +34,7 @@ function summariseLoan(loan) {
   };
 }
 
-const LOAN_SELECT = 'id, loan_number, packet_number, status, loan_date, loan_amount, closure_date, borrower_id, borrowers(name, phone), loan_items(item_type, metal_type, purity, gross_weight, net_weight, description, huid)';
+const LOAN_SELECT = 'id, loan_number, packet_number, status, loan_date, loan_amount, closure_date, borrower_id, branch_id, branches(name, code), borrowers(name, phone), loan_items(item_type, metal_type, purity, gross_weight, net_weight, description, huid)';
 
 // GET /api/search?q=
 // One box for everything staff look things up by: borrower name / phone /
@@ -93,10 +95,13 @@ export async function globalSearch(req, res, next) {
     if (extraLoansRes.error) throw new ApiError(400, extraLoansRes.error.message);
     if (borrowerLoansRes.error) throw new ApiError(400, borrowerLoansRes.error.message);
 
+    // Customers are shared across branches, but staff tied to one branch
+    // only get that branch's loans back.
+    const pinned = pinnedBranchId(req.adminUser);
     const seen = new Set();
     const loans = [];
     for (const loan of [...(loansRes.data || []), ...(extraLoansRes.data || []), ...(borrowerLoansRes.data || [])]) {
-      if (seen.has(loan.id)) continue;
+      if (seen.has(loan.id) || (pinned && loan.branch_id !== pinned)) continue;
       seen.add(loan.id);
       loans.push(summariseLoan(loan));
     }

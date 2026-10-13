@@ -336,6 +336,40 @@ label {
 @media (min-width: 1536px) { .shell-search-label, .shell-search .kbd { display: inline-flex; } }
 .shell-search .kbd { background: transparent; border-color: #4a4030; color: inherit; }
 
+/* branch switcher in the dark top bar */
+.shell-branch {
+  height: 36px; max-width: 170px; padding: 0 28px 0 10px; border-radius: 8px; border: 1px solid #4a4030;
+  background-color: rgba(203, 164, 92, 0.06); color: #F3E9D2; font-size: 13px; cursor: pointer; width: auto;
+}
+.shell-branch:hover { background-color: rgba(203, 164, 92, 0.14); }
+.shell-branch option { color: var(--text); background: var(--surface); }
+.shell-branch-pill {
+  display: inline-flex; align-items: center; height: 30px; padding: 0 10px; border-radius: 999px; font-size: 12.5px;
+  border: 1px solid #4a4030; color: #F3E9D2; white-space: nowrap; max-width: 150px; overflow: hidden; text-overflow: ellipsis;
+}
+@media (max-width: 480px) { .shell-branch { max-width: 112px; } }
+
+/* risk levels (rate-change risk summary) */
+.risk-chip { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; text-transform: capitalize; white-space: nowrap; }
+.risk-critical { background: var(--danger); color: #fff; }
+.risk-high { background: var(--danger-soft); color: var(--danger); }
+.risk-medium { background: var(--warning-soft); color: var(--warning); }
+.risk-low { background: var(--hover); color: var(--text-muted); }
+.rate-move { font-variant-numeric: tabular-nums; font-weight: 600; }
+.rate-move.down { color: var(--danger); }
+.rate-move.up { color: var(--success); }
+
+/* cash count: denomination grid */
+.denom-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.denom-grid label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-3); }
+.denom-grid input { width: 100%; text-align: right; }
+/* a whole InsightCard acting as a button (opens a dialog instead of a page) */
+.tile-button { display: block; width: 100%; padding: 0; border: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; border-radius: var(--radius-lg); }
+.tile-button:disabled { cursor: default; }
+.tile-button:focus-visible { outline: none; box-shadow: var(--ring); }
+.tile-button:not(:disabled):hover .card { border-color: var(--gold); }
+.otp-input { letter-spacing: 0.4em; font-size: 20px; text-align: center; font-variant-numeric: tabular-nums; max-width: 190px; }
+
 .kbd {
   display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px;
   border-radius: 6px; border: 1px solid var(--border); border-bottom-width: 2px; background: var(--surface);

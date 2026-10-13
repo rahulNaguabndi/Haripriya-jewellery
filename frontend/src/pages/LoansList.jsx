@@ -8,6 +8,7 @@ import FilterBar from '../components/common/FilterBar.jsx';
 import Pagination from '../components/common/Pagination.jsx';
 import StatusBadge from '../components/common/StatusBadge.jsx';
 import CardStatusBadge from '../components/common/CardStatusBadge.jsx';
+import { useBranch } from '../context/BranchContext.jsx';
 import LoanModal from '../components/Loans/LoanModal.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
 import { useOpenFromQuery } from '../hooks/useOpenFromQuery.js';
@@ -68,9 +69,13 @@ export default function LoansList() {
     setPage(1);
   }, [filters]);
 
+  const { multiBranch, branchId } = useBranch();
+  const showBranch = multiBranch && branchId === 'all';
+
   const columns = [
     { key: 'loan_number', label: 'Loan #' },
     { key: 'borrower', label: 'Borrower', render: (r) => r.borrowers?.name || '—' },
+    ...(showBranch ? [{ key: 'branch', label: 'Branch', render: (r) => r.branches?.name || '—' }] : []),
     {
       key: 'item_type',
       label: 'Items',

@@ -8,9 +8,10 @@ import { supabase } from '../config/supabaseClient.js';
 //   action: 'payment.create', entityType: 'payment', entityId,
 //   loanId, borrowerId, summary: 'Recorded payment of Rs 5,000', details: {...}
 // })
-export async function logActivity(req, { action, entityType, entityId = null, loanId = null, borrowerId = null, summary, details = null }) {
+export async function logActivity(req, { action, entityType, entityId = null, loanId = null, borrowerId = null, branchId, summary, details = null }) {
   try {
     const { error } = await supabase.from('activity_log').insert({
+      branch_id: branchId !== undefined ? branchId : req.branchId || req.adminUser?.branch_id || null,
       actor_id: req.user?.id || null,
       actor_email: req.user?.email || null,
       actor_name: req.adminUser?.full_name || null,

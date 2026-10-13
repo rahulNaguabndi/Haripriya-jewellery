@@ -1,12 +1,13 @@
 import { supabase } from '../config/supabaseClient.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { requireFields } from '../utils/validators.js';
+import { scopeBranch, writeBranchId } from '../utils/branches.js';
 
 const METAL_TYPES = ['Gold', 'Silver'];
 
 export async function listLockers(req, res, next) {
   try {
-    const { data, error } = await supabase.from('lockers').select('*').order('display_order', { ascending: true });
+    const { data, error } = await scopeBranch(supabase.from('lockers').select('*, branches(name, code)'), req).order('display_order', { ascending: true });
     if (error) throw new ApiError(400, error.message);
     res.json({ data });
   } catch (err) {
@@ -32,7 +33,7 @@ function validateCapacity(boxCapacity) {
 export async function createLocker(req, res, next) {
   try {
     requireFields(req.body, ['name', 'metalTypes']);
-    const { name, metalTypes, displayOrder, boxCapacity } = req.body;
+    const { name, metalTypes, displayOrder, boxCapacity, branchId } = req.body;
     validateMetalTypes(metalTypes);
     validateCapacity(boxCapacity);
 
@@ -43,6 +44,7 @@ export async function createLocker(req, res, next) {
         metal_types: metalTypes,
         display_order: displayOrder ?? 0,
         box_capacity: boxCapacity ?? null,
+        branch_id: await writeBranchId(req, branchId),
         updated_by: req.user.id,
       })
       .select()

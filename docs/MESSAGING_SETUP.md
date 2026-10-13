@@ -105,3 +105,17 @@ each billed separately.
   missing or invalid numbers are skipped, and the skip is logged.
 - Sending is limited to `admin` / `super_admin`. Each batch is capped at 200
   loans.
+
+## Release OTP (SMS)
+
+Closing a loan can send the borrower a 6-digit OTP (Loan → Close → Verify
+borrower). It uses the same Twilio settings as above. For India, register a
+DLT **Service-Implicit / OTP** template matching:
+
+```
+{#var#} is your OTP to collect the ornaments pledged under Loan No. {#var#} at {#var#}. Share it only at our counter. Valid 10 minutes.
+```
+
+Settings → *Release OTP & nightly email* turns on "Require an OTP before
+releasing ornaments". Until Twilio is configured, OTPs are logged as
+`not_configured`; outside production the code is shown on screen for testing.

@@ -4,6 +4,7 @@ import { requireFields } from '../utils/validators.js';
 import { fullCalendarMonthsElapsed } from '../utils/interestCalculator.js';
 import { getActiveNoticeConfig } from '../utils/noticeConfig.js';
 import { logActivity, inr } from '../utils/activityLog.js';
+import { scopeBranch } from '../utils/branches.js';
 
 export async function getNoticeConfig(req, res, next) {
   try {
@@ -92,10 +93,10 @@ export async function listNoticesDue(req, res, next) {
       return res.json({ dueNow: [], exempted: [], costAmount });
     }
 
-    const { data: loans, error: loansError } = await supabase
-      .from('loans')
-      .select('id, loan_number, loan_date, status, borrowers(name)')
-      .in('status', ['active', 'partial_payment']);
+    const { data: loans, error: loansError } = await scopeBranch(
+      supabase.from('loans').select('id, loan_number, loan_date, status, borrowers(name)'),
+      req
+    ).in('status', ['active', 'partial_payment']);
     if (loansError) throw new ApiError(400, loansError.message);
 
     const { data: sentNotices, error: noticesError } = await supabase
@@ -145,7 +146,7 @@ export async function createNotice(req, res, next) {
 
     const { data: loan, error: loanError } = await supabase
       .from('loans')
-      .select('id, loan_number, borrower_id')
+      .select('id, loan_number, borrower_id, branch_id')
       .eq('id', loanId)
       .maybeSingle();
     if (loanError) throw new ApiError(400, loanError.message);
@@ -178,6 +179,7 @@ export async function createNotice(req, res, next) {
       entityId: data.id,
       loanId,
       borrowerId: loan.borrower_id,
+      branchId: loan.branch_id,
       summary: `Marked ${thresholdMonth}-month notice sent for ${loan.loan_number}${Number(data.cost_charged) ? ` (${inr(data.cost_charged)} charge)` : ''}`,
     });
 

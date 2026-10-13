@@ -9,6 +9,7 @@ import {
   deactivateAdminUser,
   updateMyTheme,
   updateBrandTheme,
+  updateAdminUserBranch,
 } from '../controllers/adminController.js';
 import { getNoticeConfig, updateNoticeConfig } from '../controllers/noticeController.js';
 import { getCoverageConfig, updateCoverageConfig } from '../controllers/coverageController.js';
@@ -32,5 +33,6 @@ router.put('/branding', requireRole('super_admin', 'admin'), updateBrandTheme);
 router.get('/users', listAdminUsers);
 router.post('/users', requireRole('super_admin'), createAdminUser);
 router.delete('/users/:id', requireRole('super_admin'), deactivateAdminUser);
+router.patch('/users/:id/branch', requireRole('super_admin'), updateAdminUserBranch);
 
 export default router;

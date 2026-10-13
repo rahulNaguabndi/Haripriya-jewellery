@@ -4,6 +4,7 @@ import { requireFields } from '../utils/validators.js';
 import { calculateCompoundInterest } from '../utils/interestCalculator.js';
 import { getActiveInterestConfig } from '../utils/interestConfig.js';
 import { logActivity, diffFields, inr } from '../utils/activityLog.js';
+import { scopeBranch, assertBranchAccess } from '../utils/branches.js';
 
 // Re-evaluates a loan's status after a payment is recorded/edited/removed,
 // based on total amount due (principal + accrued interest) vs. payments received.
@@ -45,17 +46,20 @@ export async function createPayment(req, res, next) {
 
     const { data: loan, error: loanError } = await supabase
       .from('loans')
-      .select('id, borrower_id, loan_number')
+      .select('id, borrower_id, loan_number, branch_id')
       .eq('id', loanId)
       .maybeSingle();
     if (loanError) throw new ApiError(400, loanError.message);
     if (!loan) throw new ApiError(404, 'Loan not found');
+    assertBranchAccess(req, loan);
 
     const { data, error } = await supabase
       .from('payments')
       .insert({
         loan_id: loanId,
         borrower_id: loan.borrower_id,
+        // Cash is counted at the loan's branch (see cash close).
+        branch_id: loan.branch_id,
         amount,
         payment_date: paymentDate,
         payment_type: paymentType || 'cash',
@@ -74,6 +78,7 @@ export async function createPayment(req, res, next) {
       entityId: data.id,
       loanId,
       borrowerId: loan.borrower_id,
+      branchId: loan.branch_id,
       summary: `Recorded ${data.payment_type} payment of ${inr(amount)} on ${loan.loan_number} (dated ${paymentDate})`,
       details: { amount, paymentDate, paymentType: data.payment_type, notes },
     });
@@ -107,10 +112,10 @@ export async function listPayments(req, res, next) {
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
-    let query = supabase
-      .from('payments')
-      .select('*, loans(loan_number), borrowers(name)', { count: 'exact' })
-      .eq('is_deleted', false);
+    let query = scopeBranch(
+      supabase.from('payments').select('*, loans(loan_number), borrowers(name)', { count: 'exact' }).eq('is_deleted', false),
+      req
+    );
 
     if (req.query.borrowerId) query = query.eq('borrower_id', req.query.borrowerId);
     if (req.query.loanId) query = query.eq('loan_id', req.query.loanId);
@@ -134,6 +139,7 @@ export async function updatePayment(req, res, next) {
       .select('*, loans(loan_number)')
       .eq('id', req.params.paymentId)
       .maybeSingle();
+    assertBranchAccess(req, before);
 
     const { data, error } = await supabase
       .from('payments')
@@ -174,6 +180,9 @@ export async function updatePayment(req, res, next) {
 
 export async function deletePayment(req, res, next) {
   try {
+    const { data: existing } = await supabase.from('payments').select('branch_id').eq('id', req.params.paymentId).maybeSingle();
+    assertBranchAccess(req, existing);
+
     const { data, error } = await supabase
       .from('payments')
       .update({ is_deleted: true })

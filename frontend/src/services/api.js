@@ -5,10 +5,37 @@ export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:4100/api',
 });
 
+// Branch the user is working in ('all' or a branch id), sent on every call
+// as X-Branch-Id. Seeded from the last choice so the very first requests are
+// already scoped; BranchContext keeps it in sync. The server pins staff to
+// their own branch regardless of what is sent.
+const BRANCH_KEY = 'branchId';
+let currentBranch = (() => {
+  try {
+    return localStorage.getItem(BRANCH_KEY) || 'all';
+  } catch {
+    return 'all';
+  }
+})();
+
+export function getApiBranch() {
+  return currentBranch;
+}
+
+export function setApiBranch(id) {
+  currentBranch = id || 'all';
+  try {
+    localStorage.setItem(BRANCH_KEY, currentBranch);
+  } catch {
+    // Private mode / blocked storage: the choice just won't survive a reload.
+  }
+}
+
 api.interceptors.request.use(async (config) => {
   const { data } = await supabase.auth.getSession();
   const token = data?.session?.access_token;
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (currentBranch && currentBranch !== 'all') config.headers['X-Branch-Id'] = currentBranch;
   return config;
 });
 

@@ -17,6 +17,8 @@ import LoanPhotos from '../components/Loans/LoanPhotos.jsx';
 import ActivityTimeline from '../components/common/ActivityTimeline.jsx';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
 import { ListSkeleton } from '../components/common/Skeleton.jsx';
+import { useBranch } from '../context/BranchContext.jsx';
+import { useMyRole, isAdminRole } from '../hooks/useMyRole.js';
 
 const statuses = ['active', 'partial_payment', 'closed', 'defaulted'];
 
@@ -36,6 +38,8 @@ export default function LoanDetail() {
   const [showRepledge, setShowRepledge] = useState(false);
   const [historyKey, setHistoryKey] = useState(0);
   const [searchParams, setSearchParams] = useSearchParams();
+  const { multiBranch, activeBranches } = useBranch();
+  const role = useMyRole();
 
   // ?repledge=1 (from search results / borrower page) opens the re-pledge
   // form straight away once the loan has loaded.
@@ -81,11 +85,22 @@ export default function LoanDetail() {
   }
 
   // Errors propagate to the dialog, which shows them inline and stays open.
-  async function handleConfirmClosure({ closureDate, interestCollected, cardReturned, waiverReason, notifyChannels }) {
-    await api.patch(`/loans/${id}/status`, { status: 'closed', closureDate, interestCollected, cardReturned, waiverReason });
+  async function handleConfirmClosure({ closureDate, interestCollected, cardReturned, waiverReason, notifyChannels, otpId, otpOverrideReason }) {
+    await api.patch(`/loans/${id}/status`, { status: 'closed', closureDate, interestCollected, cardReturned, waiverReason, otpId, otpOverrideReason });
     sendConfirmation({ kind: 'closure', loanId: id, channels: notifyChannels });
     setShowClosure(false);
     load();
+  }
+
+  async function handleMoveBranch(e) {
+    const branchId = e.target.value;
+    if (!branchId || branchId === loan.branch_id) return;
+    try {
+      await api.patch(`/loans/${id}/branch`, { branchId });
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   async function handleMarkCardReturned() {
@@ -201,6 +216,19 @@ export default function LoanDetail() {
               {statuses.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
             </select>
           </div>
+          {(multiBranch || loan.branches) && (
+            <div>
+              <div className="fact-label">Branch</div>
+              {isAdminRole(role) && multiBranch ? (
+                <select value={loan.branch_id || ''} onChange={handleMoveBranch} aria-label="Move loan to branch" title="The packet has moved to this branch" style={{ padding: '6px 10px', fontSize: 13.5 }}>
+                  {!loan.branch_id && <option value="">—</option>}
+                  {activeBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              ) : (
+                <div className="fact-value">{loan.branches?.name || '—'}</div>
+              )}
+            </div>
+          )}
           <div>
             <div className="fact-label">Loan card</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

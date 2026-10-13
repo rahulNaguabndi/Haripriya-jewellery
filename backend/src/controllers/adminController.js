@@ -2,6 +2,7 @@ import { supabase } from '../config/supabaseClient.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { requireFields } from '../utils/validators.js';
 import { logActivity } from '../utils/activityLog.js';
+import { listBranches } from '../utils/branches.js';
 
 const describeTiers = (tiers) =>
   (tiers || []).map((t) => `${t.minAmount}-${t.maxAmount ?? 'up'} @ ${t.interestRate}%`).join(', ');
@@ -99,7 +100,7 @@ export async function getAllConfigs(req, res, next) {
 
 export async function listAdminUsers(req, res, next) {
   try {
-    const { data, error } = await supabase.from('admin_users').select('*').order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('admin_users').select('*, branches(name, code)').order('created_at', { ascending: false });
     if (error) throw new ApiError(400, error.message);
     res.json({ data });
   } catch (err) {
@@ -110,7 +111,8 @@ export async function listAdminUsers(req, res, next) {
 export async function createAdminUser(req, res, next) {
   try {
     requireFields(req.body, ['email', 'password', 'fullName']);
-    const { email, password, fullName, role } = req.body;
+    const { email, password, fullName, role, branchId } = req.body;
+    const homeBranch = await validBranchOrNull(branchId);
 
     const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
       email,
@@ -126,6 +128,7 @@ export async function createAdminUser(req, res, next) {
         email,
         full_name: fullName,
         role: role || 'staff',
+        branch_id: homeBranch,
         created_by: req.user.id,
       })
       .select()
@@ -251,6 +254,39 @@ export async function deactivateAdminUser(req, res, next) {
     if (error) throw new ApiError(400, error.message);
     if (!data) throw new ApiError(404, 'Admin user not found');
     res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function validBranchOrNull(branchId) {
+  if (!branchId) return null;
+  const branches = await listBranches();
+  if (!branches.some((b) => b.id === branchId && b.is_active)) throw new ApiError(400, 'Unknown or inactive branch');
+  return branchId;
+}
+
+// PATCH /api/admin/users/:id { branchId } - super_admin. Staff with a
+// branch only see and work on that branch; null = all branches.
+export async function updateAdminUserBranch(req, res, next) {
+  try {
+    const branchId = await validBranchOrNull(req.body.branchId);
+    const { data, error } = await supabase
+      .from('admin_users')
+      .update({ branch_id: branchId })
+      .eq('id', req.params.id)
+      .select('*, branches(name, code)')
+      .maybeSingle();
+    if (error) throw new ApiError(400, error.message);
+    if (!data) throw new ApiError(404, 'Admin user not found');
+    await logActivity(req, {
+      action: 'staff.branch',
+      entityType: 'admin_user',
+      entityId: data.id,
+      branchId,
+      summary: `Set ${data.email}'s branch to ${data.branches?.name || 'all branches'}`,
+    });
+    res.json(data);
   } catch (err) {
     next(err);
   }

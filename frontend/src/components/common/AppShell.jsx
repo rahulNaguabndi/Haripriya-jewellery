@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
+import { useBranch } from '../../context/BranchContext.jsx';
 import { useMyRole, isAdminRole } from '../../hooks/useMyRole.js';
 import { useShortcuts, SHORTCUTS } from '../../hooks/useShortcuts.js';
 import GlobalSearch from './GlobalSearch.jsx';
@@ -68,8 +69,27 @@ function AccountMenu({ email, isAdmin, onLogout, onShortcuts }) {
   );
 }
 
+// Shown only once there is more than one branch. Staff tied to a branch
+// just see its name; everyone else can switch, or view all branches.
+function BranchSwitcher() {
+  const { multiBranch, activeBranches, branchId, selectBranch, pinnedBranchId, currentBranch, canViewAll } = useBranch();
+  if (!multiBranch && !pinnedBranchId) return null;
+  if (pinnedBranchId) {
+    return <span className="shell-branch-pill" title="Your branch">{currentBranch?.name || 'My branch'}</span>;
+  }
+  return (
+    <select className="shell-branch" value={branchId} onChange={(e) => selectBranch(e.target.value)} aria-label="Branch">
+      {canViewAll && <option value="all">All branches</option>}
+      {activeBranches.map((b) => (
+        <option key={b.id} value={b.id}>{b.name}</option>
+      ))}
+    </select>
+  );
+}
+
 export default function AppShell({ children }) {
   const { user, logout } = useAuth();
+  const { branchId } = useBranch();
   const role = useMyRole();
   const navigate = useNavigate();
   const location = useLocation();
@@ -124,6 +144,7 @@ export default function AppShell({ children }) {
         </nav>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <BranchSwitcher />
           <button type="button" className="shell-search" onClick={handlers.search} aria-label="Search (press /)" title="Search  ( / or Ctrl+K )">
             <span aria-hidden>⌕</span>
             <span className="shell-search-label">Search</span>
@@ -154,7 +175,8 @@ export default function AppShell({ children }) {
         </nav>
       )}
 
-      <main id="main" className="flex-1 px-4 py-6 md:px-8 md:py-8" style={{ maxWidth: 1280, width: '100%', margin: '0 auto' }}>
+      {/* Keyed on the branch so switching remounts the page and it refetches. */}
+      <main key={branchId} id="main" className="flex-1 px-4 py-6 md:px-8 md:py-8" style={{ maxWidth: 1280, width: '100%', margin: '0 auto' }}>
         {children}
       </main>
 

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Modal from '../common/Modal.jsx';
 import BorrowerModal from '../Borrowers/BorrowerModal.jsx';
 import { api } from '../../services/api.js';
+import { useBranch } from '../../context/BranchContext.jsx';
 
 const itemTypes = ['Ring', 'Necklace', 'Bracelet', 'Earrings', 'Bangle', 'Chain', 'Other'];
 const metalTypes = ['Gold', 'Silver'];
@@ -67,6 +68,12 @@ export default function LoanModal({ loan, borrowerId, repledgeFrom, onClose, onS
   const [showBorrowerDropdown, setShowBorrowerDropdown] = useState(false);
   const [huidMatches, setHuidMatches] = useState({});
   const navigate = useNavigate();
+  const { multiBranch, activeBranches, currentBranch, homeBranchId, pinnedBranchId } = useBranch();
+  // New loans go to the branch being viewed; in "All branches" the user picks.
+  const chooseBranch = !loan && multiBranch && !pinnedBranchId;
+  const [branchId, setBranchId] = useState(
+    () => currentBranch?.id || homeBranchId || activeBranches.find((b) => b.is_default)?.id || activeBranches[0]?.id || ''
+  );
 
   // Same hallmarked piece already on another loan = possible double-pledge.
   async function checkHuid(index, huid) {
@@ -154,6 +161,7 @@ export default function LoanModal({ loan, borrowerId, repledgeFrom, onClose, onS
         interestRate: form.interestRate === '' ? undefined : Number(form.interestRate),
         cardGiven: form.cardGiven,
         repledgedFromLoanId: repledgeFrom?.id,
+        ...(chooseBranch && branchId ? { branchId } : {}),
       };
       const saved = loan ? await api.put(`/loans/${loan.id}`, payload) : await api.post('/loans', payload);
       if (printAfter) {
@@ -352,6 +360,16 @@ export default function LoanModal({ loan, borrowerId, repledgeFrom, onClose, onS
             Used for physical storage/locker lookup - assigned automatically, not editable.
           </div>
         </div>
+
+        {chooseBranch && (
+          <div className="field">
+            <label>Branch *</label>
+            <select required value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+              {activeBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>Where the packet is kept and the cash is counted.</div>
+          </div>
+        )}
 
         <div className="form-row">
           <div className="field">

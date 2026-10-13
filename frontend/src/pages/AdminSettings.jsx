@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { api } from '../services/api.js';
 import AdminUserModal from '../components/Admin/AdminUserModal.jsx';
 import BusinessProfileCard from '../components/Admin/BusinessProfileCard.jsx';
+import BranchesCard from '../components/Admin/BranchesCard.jsx';
+import OperationsCard from '../components/Admin/OperationsCard.jsx';
+import { useBranch } from '../context/BranchContext.jsx';
 import PageHeader from '../components/common/PageHeader.jsx';
 import Segmented from '../components/common/Segmented.jsx';
 import { ListSkeleton, Skeleton } from '../components/common/Skeleton.jsx';
@@ -103,6 +106,16 @@ export default function AdminSettings() {
 
   const canEditConfig = role === 'admin' || role === 'super_admin';
   const isSuperAdmin = role === 'super_admin';
+  const { activeBranches, multiBranch } = useBranch();
+
+  async function setUserBranch(user, branchId) {
+    try {
+      await api.patch(`/admin/users/${user.id}/branch`, { branchId: branchId || null });
+      loadAll();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
 
   function updateTier(index, field, value) {
     setTiers((t) => t.map((tier, i) => (i === index ? { ...tier, [field]: value } : tier)));
@@ -285,6 +298,8 @@ export default function AdminSettings() {
       </div>
 
       {role && <BusinessProfileCard canEdit={canEditConfig} />}
+      {canEditConfig && <OperationsCard canEdit={canEditConfig} />}
+      {canEditConfig && <BranchesCard canEdit={isSuperAdmin} />}
 
       <div className="card" style={{ padding: 22, marginBottom: 24 }}>
         <h2 className="section-title">Interest tiers</h2>
@@ -419,7 +434,22 @@ export default function AdminSettings() {
               <div style={{ fontWeight: 600, fontSize: 14 }}>{u.full_name} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({u.role})</span></div>
               <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>{u.email}</div>
             </div>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              {(multiBranch || u.branch_id) &&
+                (isSuperAdmin && u.is_active ? (
+                  <select
+                    value={u.branch_id || ''}
+                    onChange={(e) => setUserBranch(u, e.target.value)}
+                    aria-label={`Branch for ${u.email}`}
+                    title={u.role === 'staff' ? 'Staff with a branch only see that branch' : 'Home branch (admins can still view all)'}
+                    style={{ width: 'auto', padding: '5px 8px', fontSize: 13 }}
+                  >
+                    <option value="">All branches</option>
+                    {activeBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                ) : (
+                  <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>{u.branches?.name || 'All branches'}</span>
+                ))}
               <span className={`badge ${u.is_active ? 'badge-active' : 'badge-closed'}`}>{u.is_active ? 'Active' : 'Inactive'}</span>
               {isSuperAdmin && u.is_active && (
                 <button className="btn btn-danger" onClick={() => deactivateUser(u.id)}>Deactivate</button>

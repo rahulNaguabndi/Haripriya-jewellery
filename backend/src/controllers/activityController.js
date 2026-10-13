@@ -23,6 +23,8 @@ export async function listActivity(req, res, next) {
       .select('*, loans(loan_number), borrowers(name)', { count: 'exact' })
       .order('created_at', { ascending: false });
 
+    // Shop-wide entries (settings, rates) have no branch and always show.
+    if (req.branchId && !scoped) query = query.or(`branch_id.eq.${req.branchId},branch_id.is.null`);
     if (req.query.loanId) query = query.eq('loan_id', req.query.loanId);
     if (req.query.borrowerId) query = query.eq('borrower_id', req.query.borrowerId);
     if (req.query.actorId) query = query.eq('actor_id', req.query.actorId);

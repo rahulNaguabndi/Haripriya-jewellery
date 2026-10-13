@@ -2,15 +2,17 @@ import { supabase } from '../config/supabaseClient.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { requireFields } from '../utils/validators.js';
 import { fetchAll } from '../utils/fetchAll.js';
+import { scopeBranch } from '../utils/branches.js';
 
 const METAL_TYPES = ['Gold', 'Silver'];
 
 export async function listBoxes(req, res, next) {
   try {
-    const { data, error } = await supabase
-      .from('boxes')
-      .select('*, lockers(name)')
-      .order('box_number', { ascending: true });
+    // A box belongs to whichever branch its locker is in.
+    const { data, error } = await scopeBranch(supabase.from('boxes').select('*, lockers!inner(name, branch_id)'), req, 'lockers.branch_id').order(
+      'box_number',
+      { ascending: true }
+    );
     if (error) throw new ApiError(400, error.message);
     res.json({ data });
   } catch (err) {
@@ -18,20 +20,23 @@ export async function listBoxes(req, res, next) {
   }
 }
 
-// Boxes of the same metal type whose range overlaps [rangeStart, rangeEnd] -
-// surfaced as a non-blocking hint during reshuffles, so admin knows which
-// other box's range to go trim by hand. Doesn't auto-resolve anything.
-async function findOverlaps({ metalType, rangeStart, rangeEnd, excludeBoxId }) {
+// Boxes of the same metal type (in the same branch) whose range overlaps
+// [rangeStart, rangeEnd] - surfaced as a non-blocking hint during
+// reshuffles, so admin knows which other box's range to go trim by hand.
+// Doesn't auto-resolve anything.
+async function findOverlaps({ metalType, rangeStart, rangeEnd, excludeBoxId, lockerId }) {
   if (rangeStart == null || rangeEnd == null) return [];
+  const branchId = await lockerBranch(lockerId);
   let query = supabase
     .from('boxes')
-    .select('*, lockers(name)')
+    .select('*, lockers!inner(name, branch_id)')
     .eq('metal_type', metalType)
     .not('range_start', 'is', null)
     .not('range_end', 'is', null)
     .lte('range_start', rangeEnd)
     .gte('range_end', rangeStart);
   if (excludeBoxId) query = query.neq('id', excludeBoxId);
+  if (branchId) query = query.eq('lockers.branch_id', branchId);
   const { data, error } = await query;
   if (error) throw new ApiError(400, error.message);
   return data || [];
@@ -52,7 +57,7 @@ export async function createBox(req, res, next) {
       throw new ApiError(400, 'rangeStart must be less than or equal to rangeEnd');
     }
 
-    const overlaps = await findOverlaps({ metalType, rangeStart, rangeEnd });
+    const overlaps = await findOverlaps({ metalType, rangeStart, rangeEnd, lockerId });
 
     const { data, error } = await supabase
       .from('boxes')
@@ -110,6 +115,7 @@ export async function updateBox(req, res, next) {
       rangeStart: effectiveStart,
       rangeEnd: effectiveEnd,
       excludeBoxId: req.params.id,
+      lockerId: lockerId ?? current.locker_id,
     });
 
     const { data, error } = await supabase
@@ -149,7 +155,7 @@ export async function lookupPacket(req, res, next) {
 
     const { data: loan, error: loanError } = await supabase
       .from('loans')
-      .select('id, loan_number, status, borrowers(name), loan_items(metal_type)')
+      .select('id, loan_number, status, branch_id, borrowers(name), loan_items(metal_type)')
       .eq('packet_number', packetNumber)
       .maybeSingle();
     if (loanError) throw new ApiError(400, loanError.message);
@@ -162,13 +168,14 @@ export async function lookupPacket(req, res, next) {
     // item's metal type (matches how the metal_rate snapshot at loan
     // creation resolves the same ambiguity).
     const metalType = loan.loan_items?.[0]?.metal_type;
-    const { data: box, error: boxError } = await supabase
+    let boxQuery = supabase
       .from('boxes')
-      .select('*, lockers(name)')
+      .select('*, lockers!inner(name, branch_id)')
       .eq('metal_type', metalType)
       .lte('range_start', packetNumber)
-      .gte('range_end', packetNumber)
-      .maybeSingle();
+      .gte('range_end', packetNumber);
+    if (loan.branch_id) boxQuery = boxQuery.eq('lockers.branch_id', loan.branch_id);
+    const { data: box, error: boxError } = await boxQuery.maybeSingle();
     if (boxError) throw new ApiError(400, boxError.message);
 
     if (!box) {
@@ -199,8 +206,11 @@ function packetMetal(loan) {
   return loan.loan_items?.[0]?.metal_type || loan.metal_type || null;
 }
 
-function boxHolds(box, loan) {
+// Packet numbers are global, so with several branches a box only holds
+// packets of loans in its own locker's branch.
+function boxHolds(box, loan, lockerBranchId) {
   return (
+    (!lockerBranchId || !loan.branch_id || loan.branch_id === lockerBranchId) &&
     box.range_start != null &&
     box.range_end != null &&
     loan.packet_number >= box.range_start &&
@@ -219,22 +229,24 @@ const naturalCompare = (a, b) => String(a).localeCompare(String(b), undefined, {
 export async function getStorageOverview(req, res, next) {
   try {
     const [lockersRes, boxesRes, loans] = await Promise.all([
-      supabase.from('lockers').select('*').order('display_order', { ascending: true }),
-      supabase.from('boxes').select('*'),
+      scopeBranch(supabase.from('lockers').select('*'), req).order('display_order', { ascending: true }),
+      scopeBranch(supabase.from('boxes').select('*, lockers!inner(branch_id)'), req, 'lockers.branch_id'),
       fetchAll(() =>
-        supabase
-          .from('loans')
-          .select('id, packet_number, loan_amount, status, metal_type, loan_items(metal_type, net_weight, gross_weight)')
-          .not('packet_number', 'is', null)
-          .in('status', IN_STORAGE_STATUSES)
-          .order('id', { ascending: true })
+        scopeBranch(
+          supabase
+            .from('loans')
+            .select('id, packet_number, loan_amount, status, metal_type, branch_id, loan_items(metal_type, net_weight, gross_weight)')
+            .not('packet_number', 'is', null)
+            .in('status', IN_STORAGE_STATUSES),
+          req
+        ).order('id', { ascending: true })
       ),
     ]);
     if (lockersRes.error) throw new ApiError(400, lockersRes.error.message);
     if (boxesRes.error) throw new ApiError(400, boxesRes.error.message);
 
     const boxes = (boxesRes.data || []).map((box) => {
-      const held = loans.filter((loan) => boxHolds(box, loan));
+      const held = loans.filter((loan) => boxHolds(box, loan, box.lockers?.branch_id));
       return {
         ...box,
         packetCount: held.length,
@@ -261,7 +273,7 @@ export async function getStorageOverview(req, res, next) {
       };
     });
 
-    const unboxed = loans.filter((loan) => !boxes.some((box) => boxHolds(box, loan)));
+    const unboxed = loans.filter((loan) => !boxes.some((box) => boxHolds(box, loan, box.lockers?.branch_id)));
 
     res.json({
       lockers,
@@ -283,7 +295,7 @@ export async function getBoxContents(req, res, next) {
   try {
     const { data: box, error: boxError } = await supabase
       .from('boxes')
-      .select('*, lockers(id, name)')
+      .select('*, lockers(id, name, branch_id)')
       .eq('id', req.params.id)
       .maybeSingle();
     if (boxError) throw new ApiError(400, boxError.message);
@@ -297,7 +309,7 @@ export async function getBoxContents(req, res, next) {
       supabase
         .from('loans')
         .select(
-          'id, loan_number, packet_number, loan_date, loan_amount, status, metal_type, borrowers(id, name, phone, village), loan_items(item_type, metal_type, gross_weight, net_weight, purity, huid)'
+          'id, loan_number, packet_number, loan_date, loan_amount, status, metal_type, branch_id, borrowers(id, name, phone, village), loan_items(item_type, metal_type, gross_weight, net_weight, purity, huid)'
         )
         .gte('packet_number', box.range_start)
         .lte('packet_number', box.range_end)
@@ -305,8 +317,14 @@ export async function getBoxContents(req, res, next) {
         .order('packet_number', { ascending: true })
     );
 
-    res.json({ box, packets: loans.filter((loan) => packetMetal(loan) === box.metal_type) });
+    res.json({ box, packets: loans.filter((loan) => boxHolds(box, loan, box.lockers?.branch_id)) });
   } catch (err) {
     next(err);
   }
+}
+
+async function lockerBranch(lockerId) {
+  if (!lockerId) return null;
+  const { data } = await supabase.from('lockers').select('branch_id').eq('id', lockerId).maybeSingle();
+  return data?.branch_id || null;
 }

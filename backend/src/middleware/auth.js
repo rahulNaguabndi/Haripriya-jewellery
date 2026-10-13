@@ -1,4 +1,5 @@
 import { supabase } from '../config/supabaseClient.js';
+import { resolveRequestBranch } from '../utils/branches.js';
 
 // Verifies the Supabase JWT sent by the frontend and attaches the
 // authenticated user (plus their admin_users row, if any) to the request.
@@ -23,6 +24,7 @@ export async function verifyAuth(req, res, next) {
       .maybeSingle();
 
     req.adminUser = adminUser || null;
+    req.branchId = await resolveRequestBranch(req);
     next();
   } catch (err) {
     res.status(401).json({ error: 'Invalid or expired token' });

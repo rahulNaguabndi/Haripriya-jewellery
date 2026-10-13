@@ -12,6 +12,8 @@ const FIELDS = {
   licenceNumber: 'licence_number',
   gstin: 'gstin',
   jurisdiction: 'jurisdiction',
+  requireReleaseOtp: 'require_release_otp',
+  digestEmails: 'digest_emails',
 };
 
 export async function getBusinessProfile(req, res, next) {
