@@ -9,6 +9,7 @@ import { formatCurrency, formatDate } from '../utils/formatters.js';
 import GlobalSearch from '../components/common/GlobalSearch.jsx';
 import { Kbd } from '../components/common/Kbd.jsx';
 import RateRiskModal from '../components/Coverage/RateRiskModal.jsx';
+import { runwayLabel, runwayTone } from '../components/Storage/StorageCapacity.jsx';
 import { useBranch } from '../context/BranchContext.jsx';
 
 // The risk check pops up once per new rate (per branch view), the first
@@ -41,6 +42,7 @@ export default function Dashboard() {
   const [coverage, setCoverage] = useState({ loading: true, data: null, error: null });
   const [dayBook, setDayBook] = useState({ loading: true, data: null, error: null });
   const [rateRisk, setRateRisk] = useState({ loading: true, data: null, error: null });
+  const [storage, setStorage] = useState({ loading: true, data: null, error: null });
   const [showRisk, setShowRisk] = useState(false);
   const { branchId, currentBranch } = useBranch();
 
@@ -99,6 +101,11 @@ export default function Dashboard() {
       .get('/coverage')
       .then((res) => setCoverage({ loading: false, data: res.data.data, error: null }))
       .catch((err) => setCoverage({ loading: false, data: null, error: err.message }));
+
+    api
+      .get('/storage/capacity')
+      .then((res) => setStorage({ loading: false, data: res.data.metals, error: null }))
+      .catch((err) => setStorage({ loading: false, data: null, error: err.message }));
 
     api
       .get('/coverage/rate-risk')
@@ -227,6 +234,8 @@ export default function Dashboard() {
           sublabel="informational — not enforced"
         />
 
+        <StorageTile state={storage} />
+
         <InsightCard
           to="/notices"
           tone={dueNowCount > 0 ? 'amber' : 'neutral'}
@@ -315,6 +324,31 @@ export default function Dashboard() {
 }
 
 // Headline of the rate-move risk check; opens the full breakdown.
+// Locker space: the metal closest to running out leads.
+const TONE_RANK = { red: 3, amber: 2, green: 1, neutral: 0 };
+function StorageTile({ state }) {
+  const set = (state.data || []).filter((m) => m.boxesTotal > 0);
+  const worst = set.slice().sort((a, b) => TONE_RANK[runwayTone(b)] - TONE_RANK[runwayTone(a)] || (a.runwayDays ?? Infinity) - (b.runwayDays ?? Infinity))[0];
+  const tone = worst ? runwayTone(worst) : 'neutral';
+  return (
+    <InsightCard
+      to="/storage?tab=capacity"
+      tone={tone}
+      label="Locker Space"
+      loading={state.loading}
+      value={worst ? `~${worst.headroom.toLocaleString('en-IN')} ${set.length > 1 ? `${worst.metal.toLowerCase()} ` : ''}packets` : state.error ? '—' : 'Not set up'}
+      sublabel={
+        worst
+          ? set.map((m) => `${m.metal}: ${runwayLabel(m.runwayDays)}`).join(' · ')
+          : state.error
+          ? ''
+          : 'add lockers and boxes to track space'
+      }
+      cta={tone === 'red' || tone === 'amber' ? 'Plan a reshuffle' : undefined}
+    />
+  );
+}
+
 function RiskTile({ state, onOpen }) {
   const d = state.data;
   const gold = d?.rates?.find((r) => r.metal === 'Gold');

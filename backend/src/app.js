@@ -22,6 +22,7 @@ import searchRoutes from './routes/search.js';
 import branchRoutes from './routes/branches.js';
 import cashCloseRoutes from './routes/cashClose.js';
 import digestRoutes from './routes/digest.js';
+import storageRoutes from './routes/storage.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { getBrandTheme } from './controllers/adminController.js';
 
@@ -63,6 +64,7 @@ app.use('/api/search', searchRoutes);
 app.use('/api/branches', branchRoutes);
 app.use('/api/cash-close', cashCloseRoutes);
 app.use('/api/digest', digestRoutes);
+app.use('/api/storage', storageRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
