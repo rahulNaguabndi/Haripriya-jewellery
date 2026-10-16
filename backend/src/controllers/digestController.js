@@ -2,6 +2,7 @@ import { ApiError } from '../middleware/errorHandler.js';
 import { logActivity } from '../utils/activityLog.js';
 import { buildDailyDigest } from '../services/digest/dailyDigest.js';
 import { isEmailConfigured, sendEmail } from '../services/email/mailer.js';
+import { takeStorageSnapshots } from '../utils/storageCapacity.js';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -32,9 +33,16 @@ async function deliver(req, digest, trigger) {
 // the X-Cron-Key shared secret instead (see middleware/cronKey.js).
 export async function runDailyDigest(req, res, next) {
   try {
-    const digest = await buildDailyDigest({ date: dateFrom(req.query.date) });
+    const date = dateFrom(req.query.date);
+    // The same nightly run records storage occupancy; a failure there must
+    // not stop the email.
+    const storageSnapshot = await takeStorageSnapshots(date).catch((err) => {
+      console.warn('[digest] storage snapshot failed:', err.message);
+      return { saved: 0, error: err.message };
+    });
+    const digest = await buildDailyDigest({ date });
     const outcome = await deliver(req, digest, 'scheduled');
-    res.json({ date: digest.date, subject: digest.subject, recipients: digest.recipients, ...outcome });
+    res.json({ date: digest.date, subject: digest.subject, recipients: digest.recipients, ...outcome, storageSnapshot });
   } catch (err) {
     next(err);
   }
