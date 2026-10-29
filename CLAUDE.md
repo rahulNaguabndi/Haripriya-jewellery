@@ -233,6 +233,17 @@ JS — controllers do the mapping manually field-by-field (no ORM/schema layer).
 - **Rate-move risk**: `GET /api/coverage/rate-risk` compares cover at the
   latest vs previous daily rate and crosses it with borrower score; the
   Dashboard pops it up once per new rate (`RateRiskModal`).
+- **Storage capacity & reshuffle**: `utils/storageCapacity.js` (pure-ish,
+  shared by `controllers/storageController.js` → `/api/storage/*` and the
+  nightly digest run, which also upserts `storage_snapshots`). Box capacity
+  is an *estimate*: `business_profile.default_box_capacity` (20) until real
+  samples exist (reshuffle steps marked `box_full`, or boxes created before
+  their first packet and since sealed). Occupancy history is rebuilt from
+  loan/closure dates (auto-closed loans have no `closure_date` →
+  `updated_at` stands in). Reshuffle = staff enter a box's new start/end
+  after shifting the next box's lowest packets in; later boxes of the same
+  metal+branch are trimmed/emptied (`planRangeChange`), logged in
+  `box_reshuffles`. Ranges stay contiguous, so packet lookup is unchanged.
 - `controllers/insightsController.js`: day book (`/reports/day-book`),
   ageing, forecast, borrower scores (`utils/borrowerScore.js` - transparent
   points per factor). `controllers/searchController.js`: `/api/search`.

@@ -2,16 +2,27 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../services/api.js';
 import StorageVisual from '../components/Storage/StorageVisual.jsx';
+import StorageCapacity from '../components/Storage/StorageCapacity.jsx';
+import StorageReshuffle from '../components/Storage/StorageReshuffle.jsx';
 import { ListSkeleton } from '../components/common/Skeleton.jsx';
 import PageHeader from '../components/common/PageHeader.jsx';
 import Segmented from '../components/common/Segmented.jsx';
 import { useConfirm } from '../components/common/ConfirmDialog.jsx';
 
 const METAL_TYPES = ['Gold', 'Silver'];
+const TABS = ['visual', 'capacity', 'reshuffle', 'manage'];
 
 export default function Storage() {
   const [params, setParams] = useSearchParams();
-  const tab = params.get('tab') === 'manage' ? 'manage' : 'visual';
+  const tab = TABS.includes(params.get('tab')) ? params.get('tab') : 'visual';
+  const [role, setRole] = useState(null);
+  useEffect(() => {
+    api
+      .get('/auth/me')
+      .then((res) => setRole(res.data.adminProfile?.role || null))
+      .catch(() => setRole(null));
+  }, []);
+  const canEdit = role === 'admin' || role === 'super_admin';
 
   return (
     <div>
@@ -22,12 +33,20 @@ export default function Storage() {
           <Segmented
             label="Storage view"
             value={tab}
-            onChange={(key) => setParams(key === 'manage' ? { tab: 'manage' } : {})}
-            options={[{ value: 'visual', label: 'Lockers' }, { value: 'manage', label: 'Manage' }]}
+            onChange={(key) => setParams(key === 'visual' ? {} : { tab: key })}
+            options={[
+              { value: 'visual', label: 'Lockers' },
+              { value: 'capacity', label: 'Capacity' },
+              { value: 'reshuffle', label: 'Reshuffle' },
+              { value: 'manage', label: 'Manage' },
+            ]}
           />
         }
       />
-      {tab === 'visual' ? <StorageVisual /> : <StorageManage />}
+      {tab === 'visual' && <StorageVisual />}
+      {tab === 'capacity' && <StorageCapacity canEdit={canEdit} />}
+      {tab === 'reshuffle' && <StorageReshuffle canEdit={canEdit} />}
+      {tab === 'manage' && <StorageManage />}
     </div>
   );
 }
